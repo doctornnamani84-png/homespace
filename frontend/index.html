@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HomeSpace</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+  <h1>🏠 HomeSpace</h1>
+  <a href="https://wa.me/2348153191672" target="_blank" class="whatsapp-help-btn">
+    💬 Need Help? Chat on WhatsApp
+  </a>
+  <nav id="nav-auth">
+    <span id="welcome-message" class="hidden"></span>
+    <button id="btn-show-login">Login</button>
+    <button id="btn-show-register">Register</button>
+    <button id="btn-logout" class="hidden">Logout</button>
+  </nav>
+</header>
+
+  <div class="hero-banner">
+  <h2>Rent Directly. Pay Just 5%.</h2>
+  <h3>No hidden agent markups. No inflated legal fees. Just a simple, transparent 5% platform fee — a fraction of what traditional agents charge.</h3>
+</div>
+
+  <main>
+
+    <!-- LOGIN FORM -->
+    <section id="login-section" class="auth-section hidden">
+      <h2>Login</h2>
+      <form id="login-form">
+        <input type="email" id="login-email" placeholder="Email" required>
+        <input type="password" id="login-password" placeholder="Password" required>
+        <button type="submit">Login</button>
+      </form>
+      <p id="login-message" class="message"></p>
+    </section>
+
+    <!-- REGISTER FORM -->
+    <section id="register-section" class="auth-section hidden">
+      <h2>Register</h2>
+      <form id="register-form">
+        <input type="text" id="register-name" placeholder="Full name" required>
+        <input type="email" id="register-email" placeholder="Email" required>
+        <input type="password" id="register-password" placeholder="Password" required>
+        <select id="register-role">
+          <option value="tenant">Tenant / Guest</option>
+          <option value="landlord">Landlord</option>
+        </select>
+        <button type="submit">Create Account</button>
+      </form>
+      <p id="register-message" class="message"></p>
+    </section>
+
+    <div class="landlord-tools-grid">
+    <!-- CREATE PROPERTY (landlord only) -->
+    <section id="create-property-section" class="hidden">
+      <h2>List a Property</h2>
+      <form id="create-property-form">
+        <input type="text" id="prop-title" placeholder="Title" required>
+        <textarea id="prop-description" placeholder="Description"></textarea>
+        <input type="text" id="prop-location" placeholder="Location" required>
+        <label><input type="checkbox" id="prop-is-short-let"> Short-let (nightly)</label>
+        <input type="number" id="prop-price-per-night" placeholder="Price per night (₦)">
+        <input type="number" id="prop-monthly-rent" placeholder="Monthly rent (₦)">
+        <input type="url" id="prop-video-url" placeholder="Video link (optional, e.g. YouTube)">
+        <button type="submit">List Property</button>
+      </form>
+      <p id="create-property-message" class="message"></p>
+    </section>
+
+          <!-- UPLOAD IMAGE (landlord/admin) -->
+      <section id="upload-image-section" class="hidden">
+        <h2>Upload Property Photo</h2>
+        <form id="upload-image-form">
+          <input type="number" id="upload-property-id" placeholder="Property ID" required>
+          <input type="file" id="upload-image-file" accept="image/*" required>
+          <button type="submit">Upload Photo</button>
+        </form>
+        <p id="upload-image-message" class="message"></p>
+      </section>
+
+          <!-- UPLOAD VIDEO (landlord/admin) -->
+    <section id="upload-video-section" class="hidden">
+      <h2>Upload Video Tour</h2>
+      <form id="upload-video-form">
+        <input type="number" id="upload-video-property-id" placeholder="Property ID" required>
+        <input type="file" id="upload-video-file" accept="video/*" required>
+        <button type="submit">Upload Video</button>
+      </form>
+      <p id="upload-video-message" class="message"></p>
+    </section>
+    </div>
+
+        <!-- BLOCK DATES (landlord only) -->
+    <section id="block-dates-section" class="hidden">
+      <h2>Block Dates for Maintenance</h2>
+      <form id="block-dates-form">
+        <input type="number" id="block-property-id" placeholder="Property ID" required>
+        <input type="date" id="block-start-date" required>
+        <input type="date" id="block-end-date" required>
+        <input type="text" id="block-reason" placeholder="Reason (optional)">
+        <button type="submit">Block These Dates</button>
+      </form>
+      <p id="block-dates-message" class="message"></p>
+    </section>
+
+        <!-- ADMIN DASHBOARD -->
+    <section id="admin-section" class="hidden">
+      <h2>Admin Dashboard — All Bookings</h2>
+      <div id="admin-bookings-list"></div>
+    </section>
+
+    <!-- PROPERTY LISTING -->
+    <section id="properties-section">
+      <h2>Available Properties</h2>
+      <div class="filters">
+        <input type="text" id="filter-location" placeholder="Search location...">
+        <button id="btn-filter">Search</button>
+      </div>
+      <div id="properties-list" class="properties-grid"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-section">
+        <p class="footer-title">🏠 HomeSpace</p>
+        <p>Rent directly. Pay just 5%. No hidden agent markups.</p>
+      </div>
+      <div class="footer-section">
+        <p class="footer-title">Contact us</p>
+        <a href="https://wa.me/2348153191672" target="_blank" class="footer-link">💬 WhatsApp Customer Care</a>
+      </div>
+      <div class="footer-section">
+        <p class="footer-title">Follow us</p>
+        <div class="footer-social">
+          <a href="#" class="footer-link">Facebook</a>
+          <a href="#" class="footer-link">Instagram</a>
+          <a href="#" class="footer-link">Twitter</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <small>&copy; 2026 HomeSpace. All rights reserved.</small>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
