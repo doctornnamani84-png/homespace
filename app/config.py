@@ -17,6 +17,11 @@ class BaseConfig:
         "mysql+mysqlconnector://root:@localhost/homespace",
     )
 
+    SQLALCHEMY_ENGINE_OPTIONS: dict = {
+    "pool_recycle": 280,
+    "pool_pre_ping": True,
+}
+
     PAYSTACK_SECRET_KEY: str = os.environ.get("PAYSTACK_SECRET_KEY", "")
     PAYSTACK_PUBLIC_KEY: str = os.environ.get("PAYSTACK_PUBLIC_KEY", "")
 
