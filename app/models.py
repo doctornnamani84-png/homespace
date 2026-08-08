@@ -6,10 +6,9 @@ from app.extensions import db
 
 
 class UserRole(str, Enum):
-    TENANT = "tenant"
+    TENANT = "tenant" 
     LANDLORD = "landlord"
     ADMIN = "admin"
-
 
 class BookingStatus(str, Enum):
     PENDING = "pending"
@@ -60,6 +59,7 @@ class Property(db.Model):
     monthly_rent: float = db.Column(db.Numeric(10, 2), nullable=True)
     is_short_let: bool = db.Column(db.Boolean, default=False, nullable=False)
     video_url: str = db.Column(db.String(500), nullable=True)
+    listing_type: str = db.Column(db.String(10), nullable=False, default="rent")
 
     landlord_id: int = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=False, index=True

@@ -154,6 +154,7 @@ document.getElementById("create-property-form").addEventListener("submit", async
   const pricePerNight = document.getElementById("prop-price-per-night").value;
   const monthlyRent = document.getElementById("prop-monthly-rent").value;
   const videoUrl = document.getElementById("prop-video-url").value;
+  const listingType = document.getElementById("prop-listing-type").value;
 
   try {
     const response = await fetch(`${API_BASE}/properties`, {
@@ -170,6 +171,7 @@ document.getElementById("create-property-form").addEventListener("submit", async
         price_per_night: pricePerNight ? Number(pricePerNight) : null,
         monthly_rent: monthlyRent ? Number(monthlyRent) : null,
         video_url: videoUrl || null,
+        listing_type: listingType,
       }),
     });
     const data = await response.json();
@@ -215,9 +217,14 @@ async function loadProperties(location) {
 }
 
 async function renderPropertyCard(prop) {
-  const priceText = prop.is_short_let
-    ? `₦${Number(prop.price_per_night).toLocaleString()} / night`
-    : `₦${Number(prop.monthly_rent).toLocaleString()} / month`;
+  let priceText;
+  if (prop.listing_type === "sale") {
+    priceText = `₦${Number(prop.monthly_rent).toLocaleString()} (For Sale)`;
+  } else if (prop.is_short_let) {
+    priceText = `₦${Number(prop.price_per_night).toLocaleString()} / night`;
+  } else {
+    priceText = `₦${Number(prop.monthly_rent).toLocaleString()} / month`;
+  }
 
   let imagesHtml = "";
   try {
@@ -247,6 +254,10 @@ async function renderPropertyCard(prop) {
     // If video fails to load, just show the card without it.
   }
 
+const actionButton = prop.listing_type === "sale"
+    ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent('Hi, I am interested in ' + prop.title + ' listed on HomeSpace')}" target="_blank" class="contact-seller-btn">Contact Us About This Property</a>`
+    : `<button onclick="bookProperty(${prop.id})">Book Now</button>`;
+
   return `
     <div class="property-card">
       ${imagesHtml}
@@ -255,7 +266,7 @@ async function renderPropertyCard(prop) {
       <div class="price">${priceText}</div>
       <p>${escapeHtml(prop.description || "")}</p>
       ${videoHtml}
-      <button onclick="bookProperty(${prop.id})">Book Now</button>
+      ${actionButton}
     </div>
   `;
 }

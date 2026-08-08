@@ -32,14 +32,21 @@ def create_property():
     monthly_rent = data.get("monthly_rent")
     is_short_let = bool(data.get("is_short_let", False))
     video_url = data.get("video_url")
+    listing_type = data.get("listing_type", "rent")
+    if listing_type not in ("rent", "sale"):
+        listing_type = "rent"
 
     if not title or not location:
         return jsonify({"error": "title and location are required"}), 400
 
-    if price_per_night is None and monthly_rent is None:
-        return jsonify({
-            "error": "at least one of price_per_night or monthly_rent is required"
-        }), 400
+    if listing_type == "sale":
+        if monthly_rent is None:
+            return jsonify({"error": "price is required for a sale listing"}), 400
+    else:
+        if price_per_night is None and monthly_rent is None:
+            return jsonify({
+                "error": "at least one of price_per_night or monthly_rent is required"
+            }), 400
 
     landlord_id = int(get_jwt_identity())
 
@@ -51,6 +58,7 @@ def create_property():
         monthly_rent=monthly_rent,
         is_short_let=is_short_let,
         video_url=video_url,
+        listing_type=listing_type,
         landlord_id=landlord_id,
     )
 
@@ -202,6 +210,7 @@ def _serialize_property(prop: Property) -> dict:
         "monthly_rent": float(prop.monthly_rent) if prop.monthly_rent else None,
         "is_short_let": prop.is_short_let,
         "video_url": prop.video_url,
+        "listing_type": prop.listing_type,
         "landlord_id": prop.landlord_id,
         "created_at": prop.created_at.isoformat() if prop.created_at else None,
     }

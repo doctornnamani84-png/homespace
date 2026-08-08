@@ -341,3 +341,19 @@ footer {
   font-size: 0.85rem;
   opacity: 0.8;
 }
+
+.contact-seller-btn {
+  display: block;
+  text-align: center;
+  background: #25D366;
+  color: white;
+  padding: 0.6rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 600;
+  width: 100%;
+}
+
+.contact-seller-btn:hover {
+  background: #1ea952;
+}
