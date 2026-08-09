@@ -264,6 +264,10 @@ const actionButton = prop.listing_type === "sale"
     ? `<button class="edit-btn" onclick='openEditForm(${JSON.stringify(prop)})'>Edit</button>`
     : "";
 
+    const deleteButton = (currentUser && currentUser.role === "admin")
+    ? `<button class="delete-btn" onclick="deleteProperty(${prop.id})">Delete</button>`
+    : "";
+
   return `
     <div class="property-card">
       ${imagesHtml}
@@ -274,6 +278,7 @@ const actionButton = prop.listing_type === "sale"
       ${videoHtml}
       ${actionButton}
       ${editButton}
+      ${deleteButton}
     </div>
   `;
 }
@@ -612,3 +617,26 @@ document.getElementById("edit-property-form").addEventListener("submit", async (
     showMessage("edit-property-message", "Could not reach the server.", "error");
   }
 });
+
+// ---- Delete property (admin only) ----
+
+async function deleteProperty(propertyId) {
+  if (!confirm("Are you sure you want to permanently delete this property? This cannot be undone.")) return;
+
+  try {
+    const response = await fetch(`${API_BASE}/properties/${propertyId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert(data.error || "Could not delete property");
+      return;
+    }
+
+    loadProperties();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}

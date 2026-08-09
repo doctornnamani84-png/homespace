@@ -373,3 +373,19 @@ footer {
 .edit-btn:hover {
   background: #d99a3e;
 }
+
+.delete-btn {
+  background: #c0392b;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.delete-btn:hover {
+  background: #a5281c;
+}
