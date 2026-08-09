@@ -217,7 +217,9 @@ async function loadProperties(location) {
 }
 
 async function renderPropertyCard(prop) {
+  const canEdit = currentUser && (currentUser.role === "admin" || currentUser.id === prop.landlord_id);
   let priceText;
+  
   if (prop.listing_type === "sale") {
     priceText = `₦${Number(prop.monthly_rent).toLocaleString()} (For Sale)`;
   } else if (prop.is_short_let) {
@@ -258,6 +260,10 @@ const actionButton = prop.listing_type === "sale"
     ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent('Hi, I am interested in ' + prop.title + ' listed on HomeSpace')}" target="_blank" class="contact-seller-btn">Contact Us About This Property</a>`
     : `<button onclick="bookProperty(${prop.id})">Book Now</button>`;
 
+  const editButton = canEdit
+    ? `<button class="edit-btn" onclick='openEditForm(${JSON.stringify(prop)})'>Edit</button>`
+    : "";
+
   return `
     <div class="property-card">
       ${imagesHtml}
@@ -267,10 +273,10 @@ const actionButton = prop.listing_type === "sale"
       <p>${escapeHtml(prop.description || "")}</p>
       ${videoHtml}
       ${actionButton}
+      ${editButton}
     </div>
   `;
 }
-
 function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
@@ -543,3 +549,66 @@ document.getElementById("upload-image-form").addEventListener("submit", async (e
   }
 });
 
+// ---- Edit property (owner landlord or admin) ----
+
+function openEditForm(prop) {
+  document.getElementById("edit-prop-id").value = prop.id;
+  document.getElementById("edit-prop-listing-type").value = prop.listing_type || "rent";
+  document.getElementById("edit-prop-title").value = prop.title;
+  document.getElementById("edit-prop-description").value = prop.description || "";
+  document.getElementById("edit-prop-location").value = prop.location;
+  document.getElementById("edit-prop-is-short-let").checked = prop.is_short_let;
+  document.getElementById("edit-prop-price-per-night").value = prop.price_per_night || "";
+  document.getElementById("edit-prop-monthly-rent").value = prop.monthly_rent || "";
+
+  document.getElementById("edit-property-section").classList.remove("hidden");
+  document.getElementById("edit-property-section").scrollIntoView({ behavior: "smooth" });
+}
+
+document.getElementById("btn-cancel-edit").addEventListener("click", () => {
+  document.getElementById("edit-property-section").classList.add("hidden");
+});
+
+document.getElementById("edit-property-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const propertyId = document.getElementById("edit-prop-id").value;
+  const listingType = document.getElementById("edit-prop-listing-type").value;
+  const title = document.getElementById("edit-prop-title").value;
+  const description = document.getElementById("edit-prop-description").value;
+  const location = document.getElementById("edit-prop-location").value;
+  const isShortLet = document.getElementById("edit-prop-is-short-let").checked;
+  const pricePerNight = document.getElementById("edit-prop-price-per-night").value;
+  const monthlyRent = document.getElementById("edit-prop-monthly-rent").value;
+
+  try {
+    const response = await fetch(`${API_BASE}/properties/${propertyId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        title,
+        description,
+        location,
+        is_short_let: isShortLet,
+        price_per_night: pricePerNight ? Number(pricePerNight) : null,
+        monthly_rent: monthlyRent ? Number(monthlyRent) : null,
+        listing_type: listingType,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      showMessage("edit-property-message", data.error || "Could not update property", "error");
+      return;
+    }
+
+    showMessage("edit-property-message", "Property updated successfully!", "success");
+    document.getElementById("edit-property-section").classList.add("hidden");
+    loadProperties();
+  } catch (err) {
+    showMessage("edit-property-message", "Could not reach the server.", "error");
+  }
+});

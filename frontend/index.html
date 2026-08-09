@@ -76,6 +76,27 @@
       <p id="create-property-message" class="message"></p>
     </section>
 
+        <!-- EDIT PROPERTY (landlord/admin) -->
+    <section id="edit-property-section" class="hidden">
+      <h2>Edit Property</h2>
+      <form id="edit-property-form">
+        <input type="hidden" id="edit-prop-id">
+        <select id="edit-prop-listing-type">
+          <option value="rent">For Rent</option>
+          <option value="sale">For Sale</option>
+        </select>
+        <input type="text" id="edit-prop-title" placeholder="Title" required>
+        <textarea id="edit-prop-description" placeholder="Description"></textarea>
+        <input type="text" id="edit-prop-location" placeholder="Location" required>
+        <label><input type="checkbox" id="edit-prop-is-short-let"> Short-let (nightly)</label>
+        <input type="number" id="edit-prop-price-per-night" placeholder="Price per night (₦)">
+        <input type="number" id="edit-prop-monthly-rent" placeholder="Monthly rent / Sale price (₦)">
+        <button type="submit">Save Changes</button>
+        <button type="button" id="btn-cancel-edit">Cancel</button>
+      </form>
+      <p id="edit-property-message" class="message"></p>
+    </section>
+
           <!-- UPLOAD IMAGE (landlord/admin) -->
       <section id="upload-image-section" class="hidden">
         <h2>Upload Property Photo</h2>
@@ -147,6 +168,11 @@
           <a href="#" class="footer-link">Instagram</a>
           <a href="#" class="footer-link">Twitter</a>
         </div>
+      </div>
+      <div class="footer-section">
+        <p class="footer-title">Legal</p>
+        <a href="terms.html" class="footer-link">Terms & Conditions</a>
+        <a href="privacy.html" class="footer-link">Privacy Policy</a>
       </div>
     </div>
     <div class="footer-bottom">

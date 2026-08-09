@@ -151,6 +151,10 @@ def update_property(property_id: int):
     monthly_rent = data.get("monthly_rent")
     is_short_let = bool(data.get("is_short_let", False))
 
+    listing_type = data.get("listing_type", "rent")
+    if listing_type not in ("rent", "sale"):
+        listing_type = "rent"
+
     if not title or not location:
         return jsonify({"error": "title and location are required"}), 400
 
@@ -165,6 +169,8 @@ def update_property(property_id: int):
     target_property.price_per_night = price_per_night
     target_property.monthly_rent = monthly_rent
     target_property.is_short_let = is_short_let
+    target_property.listing_type = listing_type
+
 
     db.session.commit()
 

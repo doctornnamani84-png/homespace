@@ -357,3 +357,19 @@ footer {
 .contact-seller-btn:hover {
   background: #1ea952;
 }
+
+.edit-btn {
+  background: #f0ad4e;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.edit-btn:hover {
+  background: #d99a3e;
+}
