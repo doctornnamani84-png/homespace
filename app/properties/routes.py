@@ -11,7 +11,7 @@ properties_bp = Blueprint("properties", __name__)
 
 @properties_bp.route("", methods=["POST"])
 @jwt_required()
-@role_required("landlord")
+@role_required("landlord", "admin")
 def create_property():
     """Create a new property listing. Landlord-only.
 
