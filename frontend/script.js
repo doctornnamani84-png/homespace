@@ -128,6 +128,11 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     });
     const data = await response.json();
 
+    if (response.status === 429) {
+      showMessage("login-message", "Too many login attempts. Please wait a moment and try again.", "error");
+      return;
+    }
+
     if (!response.ok) {
       showMessage("login-message", data.error || "Login failed", "error");
       return;

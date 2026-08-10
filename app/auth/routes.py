@@ -2,7 +2,8 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import create_access_token, create_refresh_token
 
-from app.extensions import db, bcrypt
+from app.extensions import db, bcrypt, limiter
+
 from app.models import User, UserRole
 
 auth_bp = Blueprint("auth", __name__)
@@ -34,6 +35,7 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
 
 
 @auth_bp.route("/register", methods=["POST"])
+@limiter.limit("5 per hour")
 def register():
     """Register a new user.
 
@@ -50,6 +52,12 @@ def register():
 
     if not name or not email or not password:
         return jsonify({"error": "name, email, and password are required"}), 400
+
+    if not name or not email or not password:
+        return jsonify({"error": "name, email, and password are required"}), 400
+
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return jsonify({"error": "please enter a valid email address"}), 400
 
     if role not in (UserRole.TENANT.value, UserRole.LANDLORD.value):
         return jsonify({"error": "role must be 'tenant' or 'landlord'"}), 400
@@ -76,6 +84,7 @@ def register():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute")
 def login():
     """Authenticate a user and issue JWT access + refresh tokens.
 

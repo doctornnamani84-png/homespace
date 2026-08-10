@@ -3,7 +3,7 @@ import os
 from flask import Flask, send_from_directory
 
 from app.config import config_map
-from app.extensions import db, jwt, bcrypt, migrate
+from app.extensions import db, jwt, bcrypt, migrate, limiter
 from app.properties.image_routes import images_bp
 
 
@@ -18,7 +18,7 @@ def create_app(config_name: str | None = None) -> Flask:
     jwt.init_app(app)
     bcrypt.init_app(app)
     migrate.init_app(app, db)
-
+    limiter.init_app(app)
     _register_blueprints(app)
 
     @app.route("/")
