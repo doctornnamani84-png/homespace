@@ -277,6 +277,7 @@ const actionButton = prop.listing_type === "sale"
     <div class="property-card">
       ${imagesHtml}
       <h3>${escapeHtml(prop.title)}</h3>
+      ${canEdit ? `<div style="font-size:0.8rem;color:#888;">ID: ${prop.id}</div>` : ""}
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>
       <p>${escapeHtml(prop.description || "")}</p>
