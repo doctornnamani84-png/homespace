@@ -44,3 +44,4 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(chatbot_bp, url_prefix="/api/chat")
     app.register_blueprint(availability_bp, url_prefix="/api/properties") 
     app.register_blueprint(images_bp, url_prefix="/api/properties")
+    app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload

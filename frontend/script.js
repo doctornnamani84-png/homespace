@@ -238,13 +238,18 @@ async function renderPropertyCard(prop) {
     const imgResponse = await fetch(`${API_BASE}/properties/${prop.id}/images`);
     const imgData = await imgResponse.json();
 
-    if (imgData.count > 0) {
-      imagesHtml = `
-        <div class="property-gallery">
-          ${imgData.images.slice(0, 4).map(img => `<img src="${img.image_url}" alt="${escapeHtml(prop.title)}">`).join("")}
-        </div>
-      `;
-    }
+  if (imgData.count > 0) {
+    imagesHtml = `
+      <div class="property-gallery">
+        ${imgData.images.slice(0, 4).map(img => `
+          <div style="position:relative;">
+            <img src="${img.image_url}" alt="${escapeHtml(prop.title)}">
+            ${canEdit ? `<button onclick="deleteImage(${img.id})" style="position:absolute;top:2px;right:2px;background:#c0392b;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;">×</button>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
   } catch (err) {
     // If images fail to load, just show the card without a gallery.
   }
@@ -641,6 +646,24 @@ async function deleteProperty(propertyId) {
       return;
     }
 
+    loadProperties();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
+
+async function deleteImage(imageId) {
+  if (!confirm("Delete this photo?")) return;
+  try {
+    const response = await fetch(`${API_BASE}/properties/images/${imageId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || "Could not delete photo");
+      return;
+    }
     loadProperties();
   } catch (err) {
     alert("Could not reach the server.");
