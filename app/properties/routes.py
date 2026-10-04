@@ -35,6 +35,7 @@ def create_property():
     listing_type = data.get("listing_type", "rent")
     if listing_type not in ("rent", "sale"):
         listing_type = "rent"
+    price_negotiable = listing_type == "sale" and bool(data.get("price_negotiable", False))
 
     if not title or not location:
         return jsonify({"error": "title and location are required"}), 400
@@ -59,6 +60,7 @@ def create_property():
         is_short_let=is_short_let,
         video_url=video_url,
         listing_type=listing_type,
+        price_negotiable=price_negotiable,
         landlord_id=landlord_id,
     )
 
@@ -174,6 +176,7 @@ def update_property(property_id: int):
     listing_type = data.get("listing_type", "rent")
     if listing_type not in ("rent", "sale"):
         listing_type = "rent"
+    price_negotiable = listing_type == "sale" and bool(data.get("price_negotiable", False))
 
     if not title or not location:
         return jsonify({"error": "title and location are required"}), 400
@@ -190,6 +193,7 @@ def update_property(property_id: int):
     target_property.monthly_rent = monthly_rent
     target_property.is_short_let = is_short_let
     target_property.listing_type = listing_type
+    target_property.price_negotiable = price_negotiable
 
 
     db.session.commit()
@@ -238,6 +242,7 @@ def _serialize_property(prop: Property, review_summary: dict | None = None) -> d
         "is_short_let": prop.is_short_let,
         "video_url": prop.video_url,
         "listing_type": prop.listing_type,
+        "price_negotiable": prop.price_negotiable,
         "average_rating": review_summary["average_rating"],
         "review_count": review_summary["review_count"],
         "landlord_id": prop.landlord_id,

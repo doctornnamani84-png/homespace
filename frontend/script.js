@@ -14,6 +14,19 @@ const btnShowLogin = document.getElementById("btn-show-login");
 const btnShowRegister = document.getElementById("btn-show-register");
 const btnLogout = document.getElementById("btn-logout");
 
+function updateNegotiableOption(listingType, optionId, checkboxId) {
+  const isSale = listingType === "sale";
+  document.getElementById(optionId).classList.toggle("hidden", !isSale);
+  if (!isSale) document.getElementById(checkboxId).checked = false;
+}
+
+document.getElementById("prop-listing-type").addEventListener("change", (event) => {
+  updateNegotiableOption(event.target.value, "prop-negotiable-option", "prop-price-negotiable");
+});
+document.getElementById("edit-prop-listing-type").addEventListener("change", (event) => {
+  updateNegotiableOption(event.target.value, "edit-prop-negotiable-option", "edit-prop-price-negotiable");
+});
+
 // ---- Helpers ----
 
 function showMessage(elementId, text, type) {
@@ -172,6 +185,7 @@ document.getElementById("create-property-form").addEventListener("submit", async
   const monthlyRent = document.getElementById("prop-monthly-rent").value;
   const videoUrl = document.getElementById("prop-video-url").value;
   const listingType = document.getElementById("prop-listing-type").value;
+  const priceNegotiable = document.getElementById("prop-price-negotiable").checked;
 
   try {
     const response = await fetch(`${API_BASE}/properties`, {
@@ -189,6 +203,7 @@ document.getElementById("create-property-form").addEventListener("submit", async
         monthly_rent: monthlyRent ? Number(monthlyRent) : null,
         video_url: videoUrl || null,
         listing_type: listingType,
+        price_negotiable: priceNegotiable,
       }),
     });
     const data = await response.json();
@@ -200,6 +215,7 @@ document.getElementById("create-property-form").addEventListener("submit", async
 
     showMessage("create-property-message", "Property listed successfully!", "success");
     e.target.reset();
+    updateNegotiableOption("rent", "prop-negotiable-option", "prop-price-negotiable");
     loadProperties();
   } catch (err) {
     showMessage("create-property-message", "Could not reach the server.", "error");
@@ -255,7 +271,7 @@ async function renderPropertyCard(prop) {
   let priceText;
   
   if (prop.listing_type === "sale") {
-    priceText = `₦${Number(prop.monthly_rent).toLocaleString()} (For Sale)`;
+    priceText = `₦${Number(prop.monthly_rent).toLocaleString()} (Asking price)`;
   } else if (prop.is_short_let) {
     priceText = `₦${Number(prop.price_per_night).toLocaleString()} / night`;
   } else {
@@ -304,8 +320,11 @@ async function renderPropertyCard(prop) {
     // If video fails to load, just show the card without it.
   }
 
+const contactMessage = prop.price_negotiable
+  ? `Hi, I am interested in ${prop.title} listed on HomeSpace and would like to discuss the asking price.`
+  : `Hi, I am interested in ${prop.title} listed on HomeSpace`;
 const actionButton = prop.listing_type === "sale" || !prop.is_short_let
-  ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent('Hi, I am interested in ' + prop.title + ' listed on HomeSpace')}" target="_blank" rel="noopener noreferrer" class="contact-seller-btn">Enquire about this property</a>`
+  ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent(contactMessage)}" target="_blank" rel="noopener noreferrer" class="contact-seller-btn">Enquire about this property</a>`
   : `<button onclick="bookProperty(${prop.id})">Choose dates</button>`;
 
   const editButton = canEdit
@@ -323,6 +342,7 @@ const actionButton = prop.listing_type === "sale" || !prop.is_short_let
       ${canEdit ? `<div style="font-size:0.8rem;color:#888;">ID: ${prop.id}</div>` : ""}
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>
+      ${prop.listing_type === "sale" && prop.price_negotiable ? `<p class="negotiable-badge">Negotiable on contact</p>` : ""}
       ${prop.review_count ? `<p class="property-rating" aria-label="Rated ${prop.average_rating} out of 5 from ${prop.review_count} reviews">★ ${prop.average_rating} <span>(${prop.review_count} verified stay${prop.review_count === 1 ? "" : "s"})</span></p>` : ""}
       <p>${escapeHtml(prop.description || "")}</p>
       ${videoHtml}
@@ -818,6 +838,8 @@ function openEditForm(prop) {
   document.getElementById("edit-prop-is-short-let").checked = prop.is_short_let;
   document.getElementById("edit-prop-price-per-night").value = prop.price_per_night || "";
   document.getElementById("edit-prop-monthly-rent").value = prop.monthly_rent || "";
+  document.getElementById("edit-prop-price-negotiable").checked = prop.price_negotiable === true;
+  updateNegotiableOption(prop.listing_type || "rent", "edit-prop-negotiable-option", "edit-prop-price-negotiable");
 
   document.getElementById("edit-property-section").classList.remove("hidden");
   document.getElementById("edit-property-section").scrollIntoView({ behavior: "smooth" });
@@ -838,6 +860,7 @@ document.getElementById("edit-property-form").addEventListener("submit", async (
   const isShortLet = document.getElementById("edit-prop-is-short-let").checked;
   const pricePerNight = document.getElementById("edit-prop-price-per-night").value;
   const monthlyRent = document.getElementById("edit-prop-monthly-rent").value;
+  const priceNegotiable = document.getElementById("edit-prop-price-negotiable").checked;
 
   try {
     const response = await fetch(`${API_BASE}/properties/${propertyId}`, {
@@ -854,6 +877,7 @@ document.getElementById("edit-property-form").addEventListener("submit", async (
         price_per_night: pricePerNight ? Number(pricePerNight) : null,
         monthly_rent: monthlyRent ? Number(monthlyRent) : null,
         listing_type: listingType,
+        price_negotiable: priceNegotiable,
       }),
     });
     const data = await response.json();

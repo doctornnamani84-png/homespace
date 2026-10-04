@@ -55,11 +55,12 @@ class Property(db.Model):
     description: str = db.Column(db.Text, nullable=True)
     location: str = db.Column(db.String(200), nullable=False, index=True)
 
-    price_per_night: float = db.Column(db.Numeric(10, 2), nullable=True)
-    monthly_rent: float = db.Column(db.Numeric(10, 2), nullable=True)
+    price_per_night: float = db.Column(db.Numeric(15, 2), nullable=True)
+    monthly_rent: float = db.Column(db.Numeric(15, 2), nullable=True)
     is_short_let: bool = db.Column(db.Boolean, default=False, nullable=False)
     video_url: str = db.Column(db.String(500), nullable=True)
     listing_type: str = db.Column(db.String(10), nullable=False, default="rent")
+    price_negotiable: bool = db.Column(db.Boolean, nullable=False, default=False)
 
     landlord_id: int = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=False, index=True

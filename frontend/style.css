@@ -540,3 +540,11 @@ footer {
 .review-form textarea {
   min-height: 72px;
 }
+
+.negotiable-badge {
+  display: inline-block;
+  margin: -0.35rem 0 0.75rem;
+  color: #16602e;
+  font-size: 0.9rem;
+  font-weight: 600;
+}

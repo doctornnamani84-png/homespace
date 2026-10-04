@@ -331,3 +331,23 @@ def test_property_can_show_multiple_videos_and_owner_can_delete_one(
 		f"/api/properties/{property_data['short_let_id']}/videos"
 	)
 	assert [video["id"] for video in remaining_response.json["videos"]] == [first_video_id]
+
+
+def test_sale_listing_accepts_price_above_100_million_and_negotiability(
+	app, property_data
+):
+	response = app.test_client().post(
+		"/api/properties",
+		json={
+			"title": "High-value property",
+			"location": "Enugu",
+			"listing_type": "sale",
+			"monthly_rent": 1_000_000_000.99,
+			"price_negotiable": True,
+		},
+		headers={"Authorization": f"Bearer {property_data['landlord_token']}"},
+	)
+
+	assert response.status_code == 201
+	assert response.json["property"]["monthly_rent"] == 1_000_000_000.99
+	assert response.json["property"]["price_negotiable"] is True
