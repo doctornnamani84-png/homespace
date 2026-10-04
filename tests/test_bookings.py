@@ -9,7 +9,7 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app
 from app.extensions import db
-from app.models import Booking, BookingStatus, Property, User
+from app.models import Booking, BookingStatus, Property, PropertyVideo, User
 
 
 @pytest.fixture
@@ -60,11 +60,15 @@ def property_data(app):
 	token = create_access_token(
 		identity=str(tenant.id), additional_claims={"role": "tenant"}
 	)
+	landlord_token = create_access_token(
+		identity=str(landlord.id), additional_claims={"role": "landlord"}
+	)
 	return {
 		"short_let_id": short_let.id,
 		"monthly_rental_id": monthly_rental.id,
 		"sale_id": sale.id,
 		"token": token,
+		"landlord_token": landlord_token,
 	}
 
 
@@ -275,3 +279,55 @@ def test_only_completed_confirmed_guest_can_review_and_rating_is_listed(
 	)
 	assert listed_property["average_rating"] == 5.0
 	assert listed_property["review_count"] == 1
+
+
+def test_property_can_show_multiple_videos_and_owner_can_delete_one(
+	app, property_data, monkeypatch
+):
+	first_video = PropertyVideo(
+		property_id=property_data["short_let_id"],
+		video_url="https://res.cloudinary.com/test/video/upload/v123456/homespace/first.mp4",
+		cloudinary_public_id="homespace/first",
+	)
+	legacy_video = PropertyVideo(
+		property_id=property_data["short_let_id"],
+		video_url="https://res.cloudinary.com/test/video/upload/v123456/homespace/legacy.mp4",
+	)
+	db.session.add_all([first_video, legacy_video])
+	db.session.commit()
+	first_video_id = first_video.id
+	legacy_video_id = legacy_video.id
+	destroyed_assets = []
+
+	def fake_destroy(public_id, **kwargs):
+		destroyed_assets.append((public_id, kwargs))
+		return {"result": "ok"}
+
+	monkeypatch.setattr("app.properties.image_routes.cloudinary.uploader.destroy", fake_destroy)
+	client = app.test_client()
+
+	list_response = client.get(
+		f"/api/properties/{property_data['short_let_id']}/videos"
+	)
+	assert list_response.status_code == 200
+	assert list_response.json["count"] == 2
+
+	denied_response = client.delete(
+		f"/api/properties/videos/{first_video_id}",
+		headers=auth_headers(property_data),
+	)
+	assert denied_response.status_code == 403
+	assert destroyed_assets == []
+
+	delete_response = client.delete(
+		f"/api/properties/videos/{legacy_video_id}",
+		headers={"Authorization": f"Bearer {property_data['landlord_token']}"},
+	)
+	assert delete_response.status_code == 200
+	assert destroyed_assets == [
+		("homespace/legacy", {"resource_type": "video", "invalidate": True})
+	]
+	remaining_response = client.get(
+		f"/api/properties/{property_data['short_let_id']}/videos"
+	)
+	assert [video["id"] for video in remaining_response.json["videos"]] == [first_video_id]

@@ -289,7 +289,16 @@ async function renderPropertyCard(prop) {
     const vidData = await vidResponse.json();
 
     if (vidData.count > 0) {
-      videoHtml = `<a href="${escapeHtml(vidData.videos[0].video_url)}" target="_blank" class="video-link">🎥 Watch Video Tour</a>`;
+      videoHtml = `
+        <div class="property-videos">
+          ${vidData.videos.map((video, index) => `
+            <div class="property-video-item">
+              <a href="${escapeHtml(video.video_url)}" target="_blank" rel="noopener noreferrer" class="video-link">Watch video tour ${index + 1}</a>
+              ${canEdit ? `<button type="button" class="video-delete-button" onclick="deleteVideo(${video.id})" aria-label="Delete video tour ${index + 1}" title="Delete video tour">Delete</button>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      `;
     }
   } catch (err) {
     // If video fails to load, just show the card without it.
@@ -895,6 +904,24 @@ async function deleteImage(imageId) {
     if (!response.ok) {
       const data = await response.json();
       alert(data.error || "Could not delete photo");
+      return;
+    }
+    loadProperties();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
+
+async function deleteVideo(videoId) {
+  if (!confirm("Permanently delete this video tour?")) return;
+  try {
+    const response = await fetch(`${API_BASE}/properties/videos/${videoId}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not delete video");
       return;
     }
     loadProperties();

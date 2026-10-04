@@ -1,5 +1,7 @@
 """Property image upload and management using Cloudinary."""
 import os
+import re
+from urllib.parse import urlparse
 
 import cloudinary
 import cloudinary.uploader
@@ -130,6 +132,7 @@ def upload_video(property_id: int):
     video = PropertyVideo(
         property_id=property_id,
         video_url=upload_result["secure_url"],
+        cloudinary_public_id=upload_result.get("public_id"),
     )
     db.session.add(video)
     db.session.commit()
@@ -149,3 +152,51 @@ def list_videos(property_id: int):
         "count": len(videos),
         "videos": [{"id": v.id, "video_url": v.video_url} for v in videos],
     }), 200
+
+
+@images_bp.route("/videos/<int:video_id>", methods=["DELETE"])
+@jwt_required()
+def delete_video(video_id: int):
+    """Delete a property video. The owning landlord or an admin may delete it."""
+    video = PropertyVideo.query.get(video_id)
+    if video is None:
+        return jsonify({"error": "video not found"}), 404
+
+    claims = get_jwt()
+    current_user_id = int(get_jwt_identity())
+    is_admin = claims.get("role") == "admin"
+    if not is_admin and video.property.landlord_id != current_user_id:
+        return jsonify({"error": "you can only delete videos from your own properties"}), 403
+
+    public_id = video.cloudinary_public_id or _public_id_from_video_url(video.video_url)
+    if public_id:
+        try:
+            result = cloudinary.uploader.destroy(
+                public_id,
+                resource_type="video",
+                invalidate=True,
+            )
+        except Exception:
+            return jsonify({"error": "could not delete the video from media storage"}), 502
+        if result.get("result") not in ("ok", "not found"):
+            return jsonify({"error": "could not delete the video from media storage"}), 502
+
+    db.session.delete(video)
+    db.session.commit()
+    return jsonify({"message": "video deleted successfully"}), 200
+
+
+def _public_id_from_video_url(video_url: str) -> str | None:
+    path = urlparse(video_url).path
+    if "/upload/" not in path:
+        return None
+
+    asset_path = path.split("/upload/", 1)[1]
+    segments = asset_path.split("/")
+    if segments and re.fullmatch(r"v\d+", segments[0]):
+        segments = segments[1:]
+    if not segments:
+        return None
+
+    segments[-1] = segments[-1].rsplit(".", 1)[0]
+    return "/".join(segments) or None

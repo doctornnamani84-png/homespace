@@ -215,6 +215,7 @@ class PropertyVideo(db.Model):
         db.Integer, db.ForeignKey("properties.id"), nullable=False, index=True
     )
     video_url: str = db.Column(db.String(500), nullable=False)
+    cloudinary_public_id: str = db.Column(db.String(255), nullable=True)
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
 
     property = db.relationship("Property", backref=db.backref("videos", cascade="all, delete-orphan"))

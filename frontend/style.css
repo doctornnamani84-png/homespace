@@ -240,6 +240,28 @@ button[type="submit"]:hover {
   text-decoration: underline;
 }
 
+.property-video-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.property-video-item .video-link {
+  margin-bottom: 0.5rem;
+}
+
+.video-delete-button {
+  flex: 0 0 auto;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #c0392b;
+  border-radius: 4px;
+  background: white;
+  color: #a5281c;
+  cursor: pointer;
+}
+
 .whatsapp-help-btn {
   background: #25D366;
   color: white;
