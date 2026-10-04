@@ -919,9 +919,16 @@ async function deleteVideo(videoId) {
       method: "DELETE",
       headers: { "Authorization": `Bearer ${accessToken}` },
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      clearSession();
+      setLoggedOutUI();
+      loadProperties();
+      alert("Your session has expired. Log in again as the property's landlord or an admin, then retry.");
+      return;
+    }
     if (!response.ok) {
-      alert(data.error || "Could not delete video");
+      alert(data.error || data.msg || `Could not delete video (HTTP ${response.status}).`);
       return;
     }
     loadProperties();
