@@ -1,12 +1,59 @@
-"""Authentication endpoints: registration and login."""
-from flask import Blueprint, jsonify, request
+"""Authentication endpoints: registration, email verification, and login."""
+import smtplib
+import ssl
+from email.message import EmailMessage
+
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import create_access_token, create_refresh_token
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.extensions import db, bcrypt, limiter
 
 from app.models import User, UserRole
 
 auth_bp = Blueprint("auth", __name__)
+EMAIL_VERIFICATION_SALT = "homespace-email-verification"
+
+
+def _verification_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(
+        current_app.config["SECRET_KEY"], salt=EMAIL_VERIFICATION_SALT
+    )
+
+
+def _send_verification_email(user: User) -> None:
+    mail_server = current_app.config.get("MAIL_SERVER")
+    mail_sender = current_app.config.get("MAIL_DEFAULT_SENDER")
+    if not mail_server or not mail_sender:
+        raise RuntimeError("email delivery is not configured")
+
+    token = _verification_serializer().dumps({"user_id": user.id, "email": user.email})
+    verify_url = (
+        f"{current_app.config['PUBLIC_BASE_URL'].rstrip('/')}/verify-email.html"
+        f"?token={token}"
+    )
+    message = EmailMessage()
+    message["Subject"] = "Verify your HomeSpace email"
+    message["From"] = mail_sender
+    message["To"] = user.email
+    message.set_content(
+        f"Hello {user.name},\n\n"
+        "Please verify your email address to activate your HomeSpace account. "
+        "This link expires in 24 hours.\n\n"
+        f"{verify_url}\n\n"
+        "If you did not create this account, you can ignore this email."
+    )
+
+    mail_port = current_app.config["MAIL_PORT"]
+    with smtplib.SMTP(mail_server, mail_port, timeout=15) as smtp:
+        if current_app.config["MAIL_USE_TLS"]:
+            smtp.starttls(context=ssl.create_default_context())
+        if current_app.config.get("MAIL_USERNAME"):
+            smtp.login(
+                current_app.config["MAIL_USERNAME"],
+                current_app.config.get("MAIL_PASSWORD", ""),
+            )
+        smtp.send_message(message)
 
 
 def hash_password(plain_password: str) -> str:
@@ -70,14 +117,76 @@ def register():
         email=email,
         password_hash=hash_password(password),
         role=role,
+        email_verified=False,
     )
     db.session.add(user)
     db.session.commit()
 
+    try:
+        _send_verification_email(user)
+    except (OSError, smtplib.SMTPException, RuntimeError) as exc:
+        current_app.logger.warning(
+            "Verification email send failed for user %s (%s)",
+            user.id,
+            type(exc).__name__,
+        )
+        return jsonify({
+            "error": "account created, but the verification email could not be sent. Check email settings or use resend verification."
+        }), 503
+
     return jsonify({
-        "message": "account created successfully",
+        "message": "account created. Check your email for a verification link before logging in.",
         "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role},
     }), 201
+
+
+@auth_bp.route("/verify-email", methods=["POST"])
+@limiter.limit("20 per hour")
+def verify_email():
+    data = request.get_json(silent=True) or {}
+    token = data.get("token")
+    if not token:
+        return jsonify({"error": "verification token is required"}), 400
+
+    try:
+        token_data = _verification_serializer().loads(
+            token, max_age=current_app.config["EMAIL_VERIFICATION_MAX_AGE"]
+        )
+        user_id = int(token_data["user_id"])
+        email = token_data["email"]
+    except (BadSignature, SignatureExpired, TypeError, ValueError, KeyError):
+        return jsonify({"error": "verification link is invalid or expired"}), 400
+
+    user = db.session.get(User, user_id)
+    if user is None or user.email != email:
+        return jsonify({"error": "verification link is invalid or expired"}), 400
+    if not user.email_verified:
+        user.email_verified = True
+        db.session.commit()
+
+    return jsonify({"message": "email verified. You can now log in."}), 200
+
+
+@auth_bp.route("/resend-verification", methods=["POST"])
+@limiter.limit("3 per hour")
+def resend_verification():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    user = User.query.filter_by(email=email).first() if email else None
+    if user is not None and not user.email_verified:
+        try:
+            _send_verification_email(user)
+        except (OSError, smtplib.SMTPException, RuntimeError) as exc:
+            current_app.logger.warning(
+                "Verification email resend failed for user %s (%s)",
+                user.id,
+                type(exc).__name__,
+            )
+            return jsonify({"error": "verification email could not be sent. Please try again later."}), 503
+
+    return jsonify({
+        "message": "If an unverified account exists for that email, a verification link has been sent."
+    }), 200
 
 
 @auth_bp.route("/login", methods=["POST"])
@@ -99,6 +208,11 @@ def login():
 
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "invalid email or password"}), 401
+    if not user.email_verified:
+        return jsonify({
+            "error": "verify your email before logging in",
+            "email_verification_required": True,
+        }), 403
 
     # Include role in the token's identity claims so protected routes
     # can check permissions without an extra database lookup.

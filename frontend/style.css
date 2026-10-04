@@ -55,6 +55,34 @@ main {
   display: none !important;
 }
 
+.verification-page {
+  max-width: 520px;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+.verification-page section {
+  padding: 1.5rem;
+  border-left: 4px solid #1f7a3d;
+  background: white;
+}
+
+.verification-page button {
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 5px;
+  background: #1f7a3d;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.verification-page a {
+  display: inline-block;
+  margin-left: 0.75rem;
+  color: #16602e;
+}
+
 .auth-section, #create-property-section {
   background: white;
   padding: 1.5rem;

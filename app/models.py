@@ -25,6 +25,9 @@ class User(db.Model):
     name: str = db.Column(db.String(120), nullable=False)
     email: str = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash: str = db.Column(db.String(255), nullable=False)
+    email_verified: bool = db.Column(
+        db.Boolean, nullable=False, default=True, server_default=db.true()
+    )
     role: str = db.Column(
         db.Enum(UserRole, values_callable=lambda e: [m.value for m in e]),
         nullable=False,

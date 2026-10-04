@@ -24,6 +24,14 @@ class BaseConfig:
 
     PAYSTACK_SECRET_KEY: str = os.environ.get("PAYSTACK_SECRET_KEY", "")
     PAYSTACK_PUBLIC_KEY: str = os.environ.get("PAYSTACK_PUBLIC_KEY", "")
+    MAIL_SERVER: str = os.environ.get("MAIL_SERVER", "")
+    MAIL_PORT: int = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USE_TLS: bool = os.environ.get("MAIL_USE_TLS", "true").lower() in ("1", "true", "yes")
+    MAIL_USERNAME: str = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD: str = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER: str = os.environ.get("MAIL_DEFAULT_SENDER", "")
+    PUBLIC_BASE_URL: str = os.environ.get("PUBLIC_BASE_URL", "https://www.homespace.ng")
+    EMAIL_VERIFICATION_MAX_AGE: int = 24 * 60 * 60
 
 
 class DevelopmentConfig(BaseConfig):

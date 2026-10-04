@@ -35,9 +35,16 @@ Copy `.env.example` to `.env`, set the local database and service credentials, t
 	CLOUDINARY_URL=cloudinary://<api-key>:<api-secret>@<cloud-name>
 	PAYSTACK_SECRET_KEY=<paystack-secret-key>
 	PAYSTACK_PUBLIC_KEY=<paystack-public-key>
+	PUBLIC_BASE_URL=https://www.homespace.ng
+	MAIL_SERVER=<smtp-host>
+	MAIL_PORT=587
+	MAIL_USE_TLS=true
+	MAIL_USERNAME=<smtp-username>
+	MAIL_PASSWORD=<smtp-password>
+	MAIL_DEFAULT_SENDER=<verified-sender-address>
 	```
 
-	`CLOUDINARY_URL` is needed for property image/video uploads. Paystack keys are needed for live payment flows. The chatbot currently returns a placeholder even when an Anthropic key is set because its API integration is not implemented yet. Keep `.env` private and never commit it.
+	New tenant and landlord accounts must verify their email before logging in. Configure an SMTP provider and a verified sender address for delivery; existing accounts remain able to log in. `CLOUDINARY_URL` is needed for property image/video uploads. Paystack keys are needed for live payment flows. The chatbot currently returns a placeholder even when an Anthropic key is set because its API integration is not implemented yet. Keep `.env` private and never commit it.
 6. In the **Web** tab, set the source code directory to `/home/<your-username>/homespace`, the virtualenv to `/home/<your-username>/venvs/homespace`, and edit the WSGI configuration file. Keep its generated imports/comments if desired, but set the project path and application as follows:
 
 	```python

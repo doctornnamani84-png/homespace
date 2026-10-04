@@ -130,7 +130,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
       return;
     }
 
-    showMessage("register-message", "Account created! You can now log in.", "success");
+    showMessage("register-message", data.message || "Account created. Check your email to verify your account before logging in.", "success");
     e.target.reset();
   } catch (err) {
     showMessage("register-message", "Could not reach the server.", "error");
@@ -160,13 +160,42 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 
     if (!response.ok) {
       showMessage("login-message", data.error || "Login failed", "error");
+      document.getElementById("btn-resend-verification").classList.toggle(
+        "hidden",
+        !data.email_verification_required
+      );
       return;
     }
 
+    document.getElementById("btn-resend-verification").classList.add("hidden");
     saveSession(data.user, data.access_token);
     setLoggedInUI();
     showMessage("login-message", "", "");
     e.target.reset();
+  } catch (err) {
+    showMessage("login-message", "Could not reach the server.", "error");
+  }
+});
+
+document.getElementById("btn-resend-verification").addEventListener("click", async () => {
+  const email = document.getElementById("login-email").value.trim();
+  if (!email) {
+    showMessage("login-message", "Enter your email above first.", "error");
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/resend-verification`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    showMessage(
+      "login-message",
+      data.message || data.error || "Could not resend verification email.",
+      response.ok ? "success" : "error"
+    );
   } catch (err) {
     showMessage("login-message", "Could not reach the server.", "error");
   }
