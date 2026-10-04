@@ -565,6 +565,46 @@ document.getElementById("upload-image-form").addEventListener("submit", async (e
   }
 });
 
+// ---- Upload property video (landlord/admin) ----
+
+document.getElementById("upload-video-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const propertyId = document.getElementById("upload-video-property-id").value;
+  const fileInput = document.getElementById("upload-video-file");
+  const file = fileInput.files[0];
+
+  if (!file) {
+    showMessage("upload-video-message", "Please select a video file.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("video", file);
+
+  try {
+    const response = await fetch(`${API_BASE}/properties/${propertyId}/videos`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      showMessage("upload-video-message", data.error || "Video upload failed", "error");
+      return;
+    }
+
+    showMessage("upload-video-message", "Video uploaded successfully!", "success");
+    e.target.reset();
+    loadProperties();
+  } catch (err) {
+    showMessage("upload-video-message", "Could not reach the server.", "error");
+  }
+});
+
 // ---- Edit property (owner landlord or admin) ----
 
 function openEditForm(prop) {

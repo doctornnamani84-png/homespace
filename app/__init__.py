@@ -1,6 +1,10 @@
 """Application factory for HomeSpace."""
 import os
+
+from dotenv import load_dotenv
 from flask import Flask, send_from_directory
+
+load_dotenv()
 
 from app.config import config_map
 from app.extensions import db, jwt, bcrypt, migrate, limiter
