@@ -156,10 +156,40 @@
       <h2>Available Properties</h2>
       <div class="filters">
         <input type="text" id="filter-location" placeholder="Search location...">
+        <select id="filter-type" aria-label="Property type">
+          <option value="all">All properties</option>
+          <option value="short_let">Short stays</option>
+          <option value="rent">Monthly rentals</option>
+          <option value="sale">For sale</option>
+        </select>
+        <input type="number" id="filter-min-price" min="0" placeholder="Min price (NGN)" aria-label="Minimum price">
+        <input type="number" id="filter-max-price" min="0" placeholder="Max price (NGN)" aria-label="Maximum price">
         <button id="btn-filter">Search</button>
       </div>
       <div id="properties-list" class="properties-grid"></div>
     </section>
+
+    <section id="my-bookings-section" class="hidden">
+      <h2>My bookings</h2>
+      <div id="my-bookings-list" aria-live="polite"></div>
+    </section>
+
+    <dialog id="booking-dialog" class="booking-dialog" aria-labelledby="booking-dialog-title">
+      <div class="booking-dialog-header">
+        <h2 id="booking-dialog-title">Book a short stay</h2>
+        <button type="button" id="close-booking-dialog" aria-label="Close booking form">×</button>
+      </div>
+      <p id="booking-property-info"></p>
+      <form id="booking-checkout-form">
+        <label for="booking-start-date">Check-in</label>
+        <input type="date" id="booking-start-date" required>
+        <label for="booking-end-date">Check-out</label>
+        <input type="date" id="booking-end-date" required>
+        <p id="booking-quote" aria-live="polite">Choose your dates to see the total.</p>
+        <p id="booking-message" class="message" aria-live="polite"></p>
+        <button type="submit" id="booking-submit" disabled>Continue to secure payment</button>
+      </form>
+    </dialog>
 
   </main>
 

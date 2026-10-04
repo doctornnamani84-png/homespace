@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app.extensions import db
-from app.models import Property
+from app.models import Property, PropertyReview
 from app.utils import role_required
 
 properties_bp = Blueprint("properties", __name__)
@@ -83,15 +83,24 @@ def list_properties():
     """
     location = request.args.get("location")
     is_short_let = request.args.get("is_short_let")
+    listing_type = request.args.get("listing_type")
     min_price = request.args.get("min_price", type=float)
     max_price = request.args.get("max_price", type=float)
+
+    if listing_type not in (None, "rent", "sale"):
+        return jsonify({"error": "listing_type must be 'rent' or 'sale'"}), 400
 
     query = Property.query
 
     if location:
         query = query.filter(Property.location.ilike(f"%{location}%"))
 
-    if is_short_let is not None:
+    if listing_type is not None:
+        query = query.filter(Property.listing_type == listing_type)
+
+    if listing_type == "sale":
+        price_column = Property.monthly_rent
+    elif is_short_let is not None:
         wants_short_let = is_short_let.lower() == "true"
         query = query.filter(Property.is_short_let == wants_short_let)
         price_column = Property.price_per_night if wants_short_let else Property.monthly_rent
@@ -115,10 +124,21 @@ def list_properties():
             )
 
     results = query.order_by(Property.created_at.desc()).all()
+    review_rows = db.session.query(
+        PropertyReview.property_id,
+        db.func.avg(PropertyReview.rating),
+        db.func.count(PropertyReview.id),
+    ).group_by(PropertyReview.property_id).all()
+    review_summary = {
+        property_id: {"average_rating": round(float(average), 1), "review_count": count}
+        for property_id, average, count in review_rows
+    }
 
     return jsonify({
         "count": len(results),
-        "properties": [_serialize_property(p) for p in results],
+        "properties": [
+            _serialize_property(p, review_summary.get(p.id)) for p in results
+        ],
     }), 200
 
 @properties_bp.route("/<int:property_id>", methods=["PUT"])
@@ -206,7 +226,8 @@ def delete_property(property_id: int):
     }), 200
 
 
-def _serialize_property(prop: Property) -> dict:
+def _serialize_property(prop: Property, review_summary: dict | None = None) -> dict:
+    review_summary = review_summary or {"average_rating": None, "review_count": 0}
     return {
         "id": prop.id,
         "title": prop.title,
@@ -217,6 +238,8 @@ def _serialize_property(prop: Property) -> dict:
         "is_short_let": prop.is_short_let,
         "video_url": prop.video_url,
         "listing_type": prop.listing_type,
+        "average_rating": review_summary["average_rating"],
+        "review_count": review_summary["review_count"],
         "landlord_id": prop.landlord_id,
         "created_at": prop.created_at.isoformat() if prop.created_at else None,
     }

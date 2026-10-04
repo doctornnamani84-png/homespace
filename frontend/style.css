@@ -111,10 +111,16 @@ button[type="submit"]:hover {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .filters input {
   flex: 1;
+  min-width: 130px;
+}
+
+.filters select {
+  min-width: 145px;
 }
 
 .filters button {
@@ -358,6 +364,107 @@ footer {
   background: #1ea952;
 }
 
+#my-bookings-section {
+  margin-top: 2rem;
+}
+
+.guest-booking {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid #d9dfda;
+}
+
+.guest-booking h3,
+.guest-booking p {
+  margin: 0 0 0.35rem;
+}
+
+.guest-booking-status {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: end;
+  text-transform: capitalize;
+}
+
+.guest-booking-status button {
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-radius: 5px;
+  background: #1f7a3d;
+  color: white;
+  cursor: pointer;
+}
+
+.booking-dialog {
+  width: min(100% - 2rem, 480px);
+  border: 0;
+  border-radius: 8px;
+  padding: 1.5rem;
+  color: #222;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.booking-dialog::backdrop {
+  background: rgba(14, 30, 20, 0.58);
+}
+
+.booking-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.booking-dialog-header h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.booking-dialog-header button {
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid #ccd4ce;
+  border-radius: 50%;
+  background: white;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.booking-dialog > p {
+  color: #5a665d;
+}
+
+.booking-dialog form label {
+  font-weight: 600;
+}
+
+#booking-quote {
+  margin: 0.25rem 0;
+  padding: 0.85rem;
+  border-left: 3px solid #1f7a3d;
+  background: #f3f7f3;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+@media (max-width: 600px) {
+  .filters > * {
+    flex: 1 1 100%;
+  }
+
+  .guest-booking {
+    align-items: flex-start;
+  }
+
+  .guest-booking-status {
+    text-align: right;
+  }
+}
+
 .edit-btn {
   background: #f0ad4e;
   color: white;
@@ -388,4 +495,26 @@ footer {
 
 .delete-btn:hover {
   background: #a5281c;
+}
+
+.property-rating {
+  margin: -0.35rem 0 0.75rem;
+  color: #9a6500;
+  font-weight: 700;
+}
+
+.property-rating span {
+  color: #606b63;
+  font-size: 0.85rem;
+  font-weight: 400;
+}
+
+.review-form {
+  width: min(100%, 280px);
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+.review-form textarea {
+  min-height: 72px;
 }

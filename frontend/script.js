@@ -3,6 +3,7 @@ const API_BASE = "/api";
 // ---- Simple state, kept in memory + localStorage for persistence ----
 let currentUser = JSON.parse(localStorage.getItem("homespace_user") || "null");
 let accessToken = localStorage.getItem("homespace_token") || null;
+const propertiesById = new Map();
 
 // ---- DOM references ----
 const loginSection = document.getElementById("login-section");
@@ -41,6 +42,11 @@ function setLoggedInUI() {
     document.getElementById("admin-section").classList.remove("hidden");
     loadAdminBookings();
   }
+
+  if (currentUser.role === "tenant") {
+    document.getElementById("my-bookings-section").classList.remove("hidden");
+    loadMyBookings();
+  }
 }
 
 function setLoggedOutUI() {
@@ -49,6 +55,12 @@ function setLoggedOutUI() {
   btnLogout.classList.add("hidden");
   welcomeMessage.classList.add("hidden");
   createPropertySection.classList.add("hidden");
+  document.getElementById("block-dates-section").classList.add("hidden");
+  document.getElementById("upload-image-section").classList.add("hidden");
+  document.getElementById("upload-video-section").classList.add("hidden");
+  document.getElementById("admin-section").classList.add("hidden");
+  document.getElementById("my-bookings-section").classList.add("hidden");
+  document.getElementById("edit-property-section").classList.add("hidden");
 }
 
 function saveSession(user, token) {
@@ -200,20 +212,37 @@ async function loadProperties(location) {
   const listEl = document.getElementById("properties-list");
   listEl.innerHTML = "<p>Loading...</p>";
 
-  let url = `${API_BASE}/properties`;
-  if (location) {
-    url += `?location=${encodeURIComponent(location)}`;
+  const params = new URLSearchParams();
+  const locationFilter = location || document.getElementById("filter-location").value.trim();
+  const selectedType = document.getElementById("filter-type").value;
+  const minPrice = document.getElementById("filter-min-price").value;
+  const maxPrice = document.getElementById("filter-max-price").value;
+  if (locationFilter) params.set("location", locationFilter);
+  if (selectedType === "short_let") {
+    params.set("listing_type", "rent");
+    params.set("is_short_let", "true");
+  } else if (selectedType === "rent") {
+    params.set("listing_type", "rent");
+    params.set("is_short_let", "false");
+  } else if (selectedType === "sale") {
+    params.set("listing_type", "sale");
   }
+  if (minPrice) params.set("min_price", minPrice);
+  if (maxPrice) params.set("max_price", maxPrice);
+  const url = `${API_BASE}/properties${params.size ? `?${params}` : ""}`;
 
   try {
     const response = await fetch(url);
     const data = await response.json();
 
     if (!response.ok || data.count === 0) {
+      propertiesById.clear();
       listEl.innerHTML = "<p>No properties found.</p>";
       return;
     }
 
+    propertiesById.clear();
+    data.properties.forEach((property) => propertiesById.set(property.id, property));
     const cardsHtml = await Promise.all(data.properties.map(renderPropertyCard));
     listEl.innerHTML = cardsHtml.join("");
   } catch (err) {
@@ -266,9 +295,9 @@ async function renderPropertyCard(prop) {
     // If video fails to load, just show the card without it.
   }
 
-const actionButton = prop.listing_type === "sale"
-    ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent('Hi, I am interested in ' + prop.title + ' listed on HomeSpace')}" target="_blank" class="contact-seller-btn">Contact Us About This Property</a>`
-    : `<button onclick="bookProperty(${prop.id})">Book Now</button>`;
+const actionButton = prop.listing_type === "sale" || !prop.is_short_let
+  ? `<a href="https://wa.me/2348153191672?text=${encodeURIComponent('Hi, I am interested in ' + prop.title + ' listed on HomeSpace')}" target="_blank" rel="noopener noreferrer" class="contact-seller-btn">Enquire about this property</a>`
+  : `<button onclick="bookProperty(${prop.id})">Choose dates</button>`;
 
   const editButton = canEdit
     ? `<button class="edit-btn" onclick='openEditForm(${JSON.stringify(prop)})'>Edit</button>`
@@ -285,6 +314,7 @@ const actionButton = prop.listing_type === "sale"
       ${canEdit ? `<div style="font-size:0.8rem;color:#888;">ID: ${prop.id}</div>` : ""}
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>
+      ${prop.review_count ? `<p class="property-rating" aria-label="Rated ${prop.average_rating} out of 5 from ${prop.review_count} reviews">★ ${prop.average_rating} <span>(${prop.review_count} verified stay${prop.review_count === 1 ? "" : "s"})</span></p>` : ""}
       <p>${escapeHtml(prop.description || "")}</p>
       ${videoHtml}
       ${actionButton}
@@ -301,15 +331,111 @@ function escapeHtml(text) {
 
 // ---- Simple booking action ----
 
-async function bookProperty(propertyId) {
+const bookingDialog = document.getElementById("booking-dialog");
+const bookingForm = document.getElementById("booking-checkout-form");
+let activeBookingPropertyId = null;
+let bookingQuote = null;
+let quotedDateRange = "";
+let quoteRequestNumber = 0;
+
+function formatNaira(amount) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function bookProperty(propertyId) {
   if (!accessToken) {
     alert("Please log in as a tenant to book a property.");
     return;
   }
 
-  const startDate = prompt("Start date (YYYY-MM-DD):");
-  const endDate = prompt("End date (YYYY-MM-DD):");
-  if (!startDate || !endDate) return;
+  const property = propertiesById.get(propertyId);
+  if (!property || !property.is_short_let) return;
+  activeBookingPropertyId = propertyId;
+  bookingQuote = null;
+  quotedDateRange = "";
+  document.getElementById("booking-dialog-title").textContent = property.title;
+  document.getElementById("booking-property-info").textContent = `${property.location} · ${formatNaira(property.price_per_night)} per night · 5% platform fee`;
+  document.getElementById("booking-quote").textContent = "Choose your dates to see the total.";
+  document.getElementById("booking-message").textContent = "";
+  document.getElementById("booking-submit").disabled = true;
+  const today = new Date();
+  const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  document.getElementById("booking-start-date").min = localToday;
+  document.getElementById("booking-end-date").min = localToday;
+  bookingDialog.showModal();
+}
+
+async function refreshBookingQuote() {
+  const startDate = document.getElementById("booking-start-date").value;
+  const endDate = document.getElementById("booking-end-date").value;
+  const dateRange = `${startDate}|${endDate}`;
+  const requestNumber = ++quoteRequestNumber;
+  bookingQuote = null;
+  quotedDateRange = "";
+  document.getElementById("booking-submit").disabled = true;
+
+  if (!startDate || !endDate) {
+    document.getElementById("booking-quote").textContent = "Choose your dates to see the total.";
+    return;
+  }
+
+  document.getElementById("booking-quote").textContent = "Checking availability and price...";
+  const params = new URLSearchParams({
+    property_id: String(activeBookingPropertyId),
+    start_date: startDate,
+    end_date: endDate,
+  });
+
+  try {
+    const response = await fetch(`${API_BASE}/bookings/quote?${params}`);
+    const data = await response.json();
+    if (requestNumber !== quoteRequestNumber) return;
+    if (!response.ok) {
+      document.getElementById("booking-quote").textContent = data.error || "Could not quote these dates.";
+      return;
+    }
+
+    bookingQuote = data.quote;
+    quotedDateRange = dateRange;
+    document.getElementById("booking-quote").textContent =
+      `${bookingQuote.nights} night${bookingQuote.nights === 1 ? "" : "s"}\n` +
+      `Stay: ${formatNaira(bookingQuote.subtotal)}\n` +
+      `5% platform fee: ${formatNaira(bookingQuote.platform_fee)}\n` +
+      `Total: ${formatNaira(bookingQuote.total)}`;
+    document.getElementById("booking-submit").disabled = false;
+  } catch (err) {
+    if (requestNumber === quoteRequestNumber) {
+      document.getElementById("booking-quote").textContent = "Could not reach the server.";
+    }
+  }
+}
+
+document.getElementById("booking-start-date").addEventListener("change", () => {
+  const startDate = document.getElementById("booking-start-date").value;
+  const endInput = document.getElementById("booking-end-date");
+  endInput.min = startDate || endInput.min;
+  if (endInput.value && endInput.value <= startDate) endInput.value = "";
+  refreshBookingQuote();
+});
+document.getElementById("booking-end-date").addEventListener("change", refreshBookingQuote);
+document.getElementById("close-booking-dialog").addEventListener("click", () => bookingDialog.close());
+
+bookingForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const startDate = document.getElementById("booking-start-date").value;
+  const endDate = document.getElementById("booking-end-date").value;
+  if (quotedDateRange !== `${startDate}|${endDate}` || !bookingQuote) {
+    await refreshBookingQuote();
+    if (quotedDateRange !== `${startDate}|${endDate}` || !bookingQuote) return;
+  }
+
+  const submitButton = document.getElementById("booking-submit");
+  submitButton.disabled = true;
+  document.getElementById("booking-message").textContent = "Creating your booking...";
 
   try {
     const bookingResponse = await fetch(`${API_BASE}/bookings`, {
@@ -319,7 +445,7 @@ async function bookProperty(propertyId) {
         "Authorization": `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        property_id: propertyId,
+        property_id: activeBookingPropertyId,
         start_date: startDate,
         end_date: endDate,
       }),
@@ -327,12 +453,12 @@ async function bookProperty(propertyId) {
     const bookingData = await bookingResponse.json();
 
     if (!bookingResponse.ok) {
-      alert(bookingData.error || "Booking failed");
+      document.getElementById("booking-message").textContent = bookingData.error || "Booking failed.";
       return;
     }
 
     const bookingId = bookingData.booking.id;
-    alert(`Booking created! Total: ₦${Number(bookingData.booking.total_price).toLocaleString()}\nRedirecting to payment...`);
+    document.getElementById("booking-message").textContent = "Booking created. Opening secure payment...";
 
     const paymentResponse = await fetch(`${API_BASE}/payments/initialize`, {
       method: "POST",
@@ -345,7 +471,8 @@ async function bookProperty(propertyId) {
     const paymentData = await paymentResponse.json();
 
     if (!paymentResponse.ok) {
-      alert(paymentData.error || "Could not start payment");
+      document.getElementById("booking-message").textContent = paymentData.error || "Could not start payment. You can retry from My bookings.";
+      loadMyBookings();
       return;
     }
 
@@ -353,15 +480,21 @@ async function bookProperty(propertyId) {
     window.location.href = paymentData.authorization_url;
 
   } catch (err) {
-    alert("Could not reach the server.");
+    document.getElementById("booking-message").textContent = "Could not reach the server. You can retry payment from My bookings.";
+    loadMyBookings();
+  } finally {
+    submitButton.disabled = false;
   }
-}
+});
 
 // ---- Filter button ----
 
 document.getElementById("btn-filter").addEventListener("click", () => {
-  const location = document.getElementById("filter-location").value;
-  loadProperties(location);
+  loadProperties();
+});
+
+document.getElementById("filter-location").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") loadProperties();
 });
 
 // ---- Initial page load ----
@@ -373,6 +506,66 @@ if (currentUser && accessToken) {
 }
 
 loadProperties();
+
+async function loadMyBookings() {
+  const listEl = document.getElementById("my-bookings-list");
+  if (!listEl || !accessToken) return;
+  listEl.innerHTML = "<p>Loading your bookings...</p>";
+
+  try {
+    const response = await fetch(`${API_BASE}/bookings/mine`, {
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      listEl.textContent = data.error || "Could not load your bookings.";
+      return;
+    }
+    if (data.count === 0) {
+      listEl.innerHTML = "<p>You have no bookings yet.</p>";
+      return;
+    }
+
+    listEl.innerHTML = data.bookings.map((booking) => `
+      <article class="guest-booking">
+        <div>
+          <h3>${escapeHtml(booking.property_title || "Property")}</h3>
+          <p>${escapeHtml(booking.property_location || "")}</p>
+          <p>${booking.start_date} to ${booking.end_date}</p>
+        </div>
+        <div class="guest-booking-status">
+          <strong>${formatNaira(booking.total_price)}</strong>
+          <span>${escapeHtml(booking.status)}</span>
+          ${booking.status === "pending" ? `<button type="button" onclick="continuePayment(${booking.id})">Pay now</button>` : ""}
+          ${booking.status === "confirmed" && booking.end_date < new Date().toISOString().slice(0, 10) && !booking.review_submitted ? `<form class="review-form" onsubmit="submitBookingReview(event, ${booking.id})"><label>Rate your stay<select name="rating" required><option value="">Rating</option><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Okay</option><option value="2">2 - Poor</option><option value="1">1 - Very poor</option></select></label><textarea name="comment" maxlength="1200" placeholder="Share details of your stay" required></textarea><button type="submit">Submit review</button></form>` : booking.review_submitted ? "<span>Review submitted</span>" : ""}
+        </div>
+      </article>
+    `).join("");
+  } catch (err) {
+    listEl.textContent = "Could not reach the server.";
+  }
+}
+
+async function continuePayment(bookingId) {
+  try {
+    const response = await fetch(`${API_BASE}/payments/initialize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ booking_id: bookingId }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not start payment.");
+      return;
+    }
+    window.location.href = data.authorization_url;
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
 
 
 // ---- Admin: load and display all bookings ----
@@ -704,6 +897,34 @@ async function deleteImage(imageId) {
       alert(data.error || "Could not delete photo");
       return;
     }
+    loadProperties();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
+
+async function submitBookingReview(event, bookingId) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  try {
+    const response = await fetch(`${API_BASE}/bookings/${bookingId}/review`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        rating: Number(formData.get("rating")),
+        comment: formData.get("comment"),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not submit review.");
+      return;
+    }
+    loadMyBookings();
     loadProperties();
   } catch (err) {
     alert("Could not reach the server.");

@@ -127,6 +127,8 @@ class Booking(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     total_price: float = db.Column(db.Numeric(10, 2), nullable=False)
+    platform_fee: float = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    paystack_reference: str = db.Column(db.String(100), nullable=True, unique=True)
     status: str = db.Column(
         db.Enum(BookingStatus, values_callable=lambda e: [m.value for m in e]),
         nullable=False,
@@ -137,6 +139,10 @@ class Booking(db.Model):
 
     property = db.relationship("Property", back_populates="bookings")
     tenant = db.relationship("User", back_populates="bookings")
+    review = db.relationship(
+        "PropertyReview", back_populates="booking", uselist=False,
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         db.CheckConstraint("end_date > start_date", name="ck_booking_dates_valid"),
@@ -144,6 +150,33 @@ class Booking(db.Model):
 
     def __repr__(self) -> str:
         return f"<Booking {self.id} property={self.property_id} {self.start_date}→{self.end_date}>"
+
+
+class PropertyReview(db.Model):
+    """A guest review backed by a confirmed, completed booking."""
+
+    __tablename__ = "property_reviews"
+
+    id: int = db.Column(db.Integer, primary_key=True)
+    booking_id: int = db.Column(
+        db.Integer, db.ForeignKey("bookings.id"), nullable=False, unique=True
+    )
+    property_id: int = db.Column(
+        db.Integer, db.ForeignKey("properties.id"), nullable=False, index=True
+    )
+    rating: int = db.Column(db.Integer, nullable=False)
+    comment: str = db.Column(db.String(1200), nullable=False)
+    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+
+    booking = db.relationship("Booking", back_populates="review")
+    property = db.relationship("Property", backref=db.backref("reviews", cascade="all, delete-orphan"))
+
+    __table_args__ = (
+        db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_property_review_rating"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<PropertyReview property={self.property_id} rating={self.rating}>"
 
 
 class PropertyImage(db.Model):

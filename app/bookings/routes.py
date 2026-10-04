@@ -1,14 +1,17 @@
 """Booking creation endpoints, including double-booking prevention."""
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
-from app.models import Booking, Property, BookingStatus, UnavailableDate
+from app.models import Booking, Property, BookingStatus, PropertyReview, UnavailableDate
 from app.utils import role_required
 
 bookings_bp = Blueprint("bookings", __name__)
+PLATFORM_FEE_RATE = Decimal("0.05")
+CENT = Decimal("0.01")
 
 
 def _parse_date(value: str) -> date | None:
@@ -44,6 +47,56 @@ def _has_overlap(property_id: int, start_date: date, end_date: date) -> bool:
     ).first()
 
     return conflicting_block is not None
+
+
+def _booking_amounts(prop: Property, start_date: date, end_date: date):
+    if prop.listing_type == "sale" or not prop.is_short_let:
+        return None
+
+    nights = (end_date - start_date).days
+    if prop.price_per_night is None:
+        return None
+    subtotal = Decimal(str(prop.price_per_night)) * nights
+
+    subtotal = subtotal.quantize(CENT, rounding=ROUND_HALF_UP)
+    platform_fee = (subtotal * PLATFORM_FEE_RATE).quantize(CENT, rounding=ROUND_HALF_UP)
+    return subtotal, platform_fee, subtotal + platform_fee
+
+
+@bookings_bp.route("/quote", methods=["GET"])
+def quote_booking():
+    property_id = request.args.get("property_id", type=int)
+    start_date = _parse_date(request.args.get("start_date"))
+    end_date = _parse_date(request.args.get("end_date"))
+
+    if not property_id or not start_date or not end_date:
+        return jsonify({"error": "property_id, start_date, and end_date are required (dates as YYYY-MM-DD)"}), 400
+    if end_date <= start_date:
+        return jsonify({"error": "end_date must be after start_date"}), 400
+    if start_date < date.today():
+        return jsonify({"error": "start_date cannot be in the past"}), 400
+
+    target_property = Property.query.get(property_id)
+    if target_property is None:
+        return jsonify({"error": "property not found"}), 404
+    if _has_overlap(property_id, start_date, end_date):
+        return jsonify({"error": "this property is unavailable for the selected dates"}), 409
+
+    amounts = _booking_amounts(target_property, start_date, end_date)
+    if amounts is None:
+        return jsonify({"error": "only short-let properties can be booked online"}), 422
+
+    subtotal, platform_fee, total = amounts
+    return jsonify({
+        "quote": {
+            "nights": (end_date - start_date).days,
+            "subtotal": float(subtotal),
+            "platform_fee": float(platform_fee),
+            "platform_fee_rate": 5,
+            "total": float(total),
+            "currency": "NGN",
+        },
+    }), 200
 
 @bookings_bp.route("", methods=["POST"])
 @jwt_required()
@@ -85,11 +138,12 @@ def create_booking():
             "error": "this property is already booked for part or all of the requested dates"
         }), 409
 
-    total_price = _calculate_total_price(target_property, start_date, end_date)
-    if total_price is None:
+    amounts = _booking_amounts(target_property, start_date, end_date)
+    if amounts is None:
         return jsonify({
-            "error": "this property does not have a price configured for this booking type"
+            "error": "this property cannot be booked for this booking type"
         }), 422
+    _, platform_fee, total_price = amounts
 
     tenant_id = int(get_jwt_identity())
 
@@ -99,6 +153,7 @@ def create_booking():
         start_date=start_date,
         end_date=end_date,
         total_price=total_price,
+        platform_fee=platform_fee,
         status=BookingStatus.PENDING.value,
     )
     db.session.add(booking)
@@ -108,6 +163,55 @@ def create_booking():
         "message": "booking request created successfully",
         "booking": _serialize_booking(booking),
     }), 201
+
+
+@bookings_bp.route("/mine", methods=["GET"])
+@jwt_required()
+@role_required("tenant")
+def list_my_bookings():
+    tenant_id = int(get_jwt_identity())
+    bookings = Booking.query.filter_by(tenant_id=tenant_id).order_by(Booking.created_at.desc()).all()
+    return jsonify({
+        "count": len(bookings),
+        "bookings": [_serialize_booking_with_details(booking) for booking in bookings],
+    }), 200
+
+
+@bookings_bp.route("/<int:booking_id>/review", methods=["POST"])
+@jwt_required()
+@role_required("tenant")
+def review_booking(booking_id: int):
+    tenant_id = int(get_jwt_identity())
+    booking = db.session.get(Booking, booking_id)
+    if booking is None:
+        return jsonify({"error": "booking not found"}), 404
+    if booking.tenant_id != tenant_id:
+        return jsonify({"error": "you can only review your own bookings"}), 403
+    if booking.status != BookingStatus.CONFIRMED.value or booking.end_date >= date.today():
+        return jsonify({"error": "reviews are available after a confirmed stay has ended"}), 409
+    if booking.review is not None:
+        return jsonify({"error": "you have already reviewed this stay"}), 409
+
+    data = request.get_json(silent=True) or {}
+    try:
+        rating = int(data.get("rating"))
+    except (TypeError, ValueError):
+        rating = 0
+    comment = (data.get("comment") or "").strip()
+    if not 1 <= rating <= 5:
+        return jsonify({"error": "rating must be between 1 and 5"}), 400
+    if not comment or len(comment) > 1200:
+        return jsonify({"error": "comment must be between 1 and 1200 characters"}), 400
+
+    review = PropertyReview(
+        booking_id=booking.id,
+        property_id=booking.property_id,
+        rating=rating,
+        comment=comment,
+    )
+    db.session.add(review)
+    db.session.commit()
+    return jsonify({"message": "review submitted", "rating": review.rating}), 201
 
 
 @bookings_bp.route("/<int:booking_id>/cancel", methods=["PATCH"])
@@ -137,24 +241,6 @@ def cancel_booking(booking_id: int):
 
 
 
-def _calculate_total_price(prop: Property, start_date: date, end_date: date) -> float | None:
-    """Compute the total price for a booking based on the property's rate.
-
-    Short-let properties are billed per night; long-term rentals here are
-    treated as billed at the flat monthly_rent regardless of exact date
-    span (a simplification — refine once lease-length rules are defined).
-    """
-    nights = (end_date - start_date).days
-
-    if prop.is_short_let and prop.price_per_night is not None:
-        return float(prop.price_per_night) * nights
-
-    if not prop.is_short_let and prop.monthly_rent is not None:
-        return float(prop.monthly_rent)
-
-    return None
-
-
 def _serialize_booking(booking: Booking) -> dict:
     """Convert a Booking model instance into a JSON-serializable dict."""
     return {
@@ -163,6 +249,8 @@ def _serialize_booking(booking: Booking) -> dict:
         "tenant_id": booking.tenant_id,
         "start_date": booking.start_date.isoformat(),
         "end_date": booking.end_date.isoformat(),
+        "subtotal": float(booking.total_price - booking.platform_fee),
+        "platform_fee": float(booking.platform_fee),
         "total_price": float(booking.total_price),
         "status": booking.status,
         "payout_status": booking.payout_status,
@@ -192,6 +280,8 @@ def _serialize_booking_with_details(booking: Booking) -> dict:
     base["tenant_name"] = booking.tenant.name if booking.tenant else None
     base["tenant_email"] = booking.tenant.email if booking.tenant else None
     base["property_title"] = booking.property.title if booking.property else None
+    base["property_location"] = booking.property.location if booking.property else None
+    base["review_submitted"] = booking.review is not None
     return base 
 
 @bookings_bp.route("/<int:booking_id>/mark-paid-out", methods=["PATCH"])

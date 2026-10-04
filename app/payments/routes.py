@@ -1,6 +1,7 @@
 """Payment initialization and Paystack webhook handling."""
 import hashlib
 import hmac
+from decimal import Decimal, ROUND_HALF_UP
 import os
 
 import requests
@@ -18,9 +19,6 @@ PAYSTACK_BASE_URL = "https://api.paystack.co"
 @payments_bp.route("/initialize", methods=["POST"])
 @jwt_required()
 def initialize_payment():
-    print("DEBUG - PAYSTACK_SECRET_KEY:", repr(current_app.config.get("PAYSTACK_SECRET_KEY")))
-    data = request.get_json(silent=True) or {}
-    ...
     """Start a Paystack transaction for an existing pending booking.
 
     Expects JSON body: {booking_id}.
@@ -50,7 +48,9 @@ def initialize_payment():
     if not secret_key:
         return jsonify({"error": "payment provider is not configured"}), 503
 
-    amount_kobo = int(float(booking.total_price) * 100)
+    amount_kobo = int(
+        (Decimal(str(booking.total_price)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    )
 
     tenant_email = booking.tenant.email
 
@@ -60,6 +60,7 @@ def initialize_payment():
         json={
             "email": tenant_email,
             "amount": amount_kobo,
+            "currency": "NGN",
             "metadata": {"booking_id": booking.id},
         },
         timeout=10,
@@ -69,11 +70,18 @@ def initialize_payment():
         return jsonify({"error": "failed to initialize payment with Paystack"}), 502
 
     paystack_data = response.json().get("data", {})
+    authorization_url = paystack_data.get("authorization_url")
+    reference = paystack_data.get("reference")
+    if not authorization_url or not reference:
+        return jsonify({"error": "payment provider returned an incomplete response"}), 502
+
+    booking.paystack_reference = reference
+    db.session.commit()
 
     return jsonify({
-        "authorization_url": paystack_data.get("authorization_url"),
+        "authorization_url": authorization_url,
         "access_code": paystack_data.get("access_code"),
-        "reference": paystack_data.get("reference"),
+        "reference": reference,
     }), 200
 
 
@@ -89,6 +97,9 @@ def paystack_webhook():
     secret_key = current_app.config.get("PAYSTACK_SECRET_KEY", "")
     signature = request.headers.get("x-paystack-signature", "")
 
+    if not secret_key or not signature:
+        return jsonify({"error": "payment webhook is not configured"}), 503
+
     computed_signature = hmac.new(
         secret_key.encode("utf-8"),
         request.data,
@@ -102,10 +113,28 @@ def paystack_webhook():
     event = payload.get("event")
 
     if event == "charge.success":
-        booking_id = payload.get("data", {}).get("metadata", {}).get("booking_id")
+        payment_data = payload.get("data", {})
+        booking_id = payment_data.get("metadata", {}).get("booking_id")
         booking = Booking.query.get(booking_id) if booking_id else None
 
-        if booking is not None:
+        if booking is not None and booking.status == BookingStatus.PENDING.value:
+            expected_amount = int(
+                (Decimal(str(booking.total_price)) * 100).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                )
+            )
+            try:
+                received_amount = int(payment_data.get("amount"))
+            except (TypeError, ValueError):
+                received_amount = -1
+
+            if (
+                payment_data.get("reference") != booking.paystack_reference
+                or payment_data.get("currency") != "NGN"
+                or received_amount != expected_amount
+            ):
+                return jsonify({"error": "payment details do not match the booking"}), 400
+
             booking.status = BookingStatus.CONFIRMED.value
             db.session.commit()
 
