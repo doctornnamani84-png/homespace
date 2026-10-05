@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <meta name="description" content="{{ description }}">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="{{ canonical_url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HomeSpace">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1><a href="/" style="color: inherit; text-decoration: none;">HomeSpace</a></h1>
+    <a href="/" class="whatsapp-help-btn">Browse properties</a>
+  </header>
+  <main class="property-detail-page">
+    <nav aria-label="Breadcrumb">
+      <a href="/">HomeSpace</a> &rsaquo; {{ listing.location }}
+    </nav>
+    <article>
+      <p class="property-detail-type">{{ property_type }}</p>
+      <h1>{{ listing.title }}</h1>
+      <p class="property-detail-location">{{ listing.location }}</p>
+      <p class="property-detail-price">{{ price_text }}</p>
+      {% if listing.price_negotiable and listing.listing_type == "sale" %}
+        <p class="negotiable-badge">Negotiable on contact</p>
+      {% endif %}
+      {% if review_count %}
+        <p class="property-rating">&#9733; {{ average_rating }} ({{ review_count }} verified stay reviews)</p>
+      {% endif %}
+      {% if listing.images %}
+        <div class="property-detail-gallery">
+          {% for image in listing.images %}
+            <img src="{{ image.image_url }}" alt="{{ listing.title }} in {{ listing.location }}">
+          {% endfor %}
+        </div>
+      {% endif %}
+      <section aria-labelledby="description-heading">
+        <h2 id="description-heading">About this property</h2>
+        <p>{{ listing.description or "Contact HomeSpace for more information about this property." }}</p>
+      </section>
+      {% if listing.videos %}
+        <section aria-labelledby="video-heading">
+          <h2 id="video-heading">Video tours</h2>
+          {% for video in listing.videos %}
+            <p><a href="{{ video.video_url }}" rel="noopener">Watch video tour {{ loop.index }}</a></p>
+          {% endfor %}
+        </section>
+      {% endif %}
+      <a class="contact-seller-btn" href="/#properties-section">View listing and contact HomeSpace</a>
+    </article>
+  </main>
+</body>
+</html>

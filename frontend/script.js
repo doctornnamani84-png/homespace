@@ -365,9 +365,9 @@ const actionButton = prop.listing_type === "sale" || !prop.is_short_let
     : "";
 
   return `
-    <div class="property-card">
+    <div class="property-card" id="property-${prop.id}">
       ${imagesHtml}
-      <h3>${escapeHtml(prop.title)}</h3>
+      <h3><a class="property-title-link" href="${escapeHtml(prop.page_url)}">${escapeHtml(prop.title)}</a></h3>
       ${canEdit ? `<div style="font-size:0.8rem;color:#888;">ID: ${prop.id}</div>` : ""}
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>

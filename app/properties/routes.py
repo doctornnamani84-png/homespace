@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app.extensions import db
+from app.seo import property_page_url
 from app.models import Property, PropertyReview
 from app.utils import role_required
 
@@ -243,6 +244,7 @@ def _serialize_property(prop: Property, review_summary: dict | None = None) -> d
         "video_url": prop.video_url,
         "listing_type": prop.listing_type,
         "price_negotiable": prop.price_negotiable,
+        "page_url": property_page_url(prop.id, prop.title),
         "average_rating": review_summary["average_rating"],
         "review_count": review_summary["review_count"],
         "landlord_id": prop.landlord_id,

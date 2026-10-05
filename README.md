@@ -35,7 +35,7 @@ Copy `.env.example` to `.env`, set the local database and service credentials, t
 	CLOUDINARY_URL=cloudinary://<api-key>:<api-secret>@<cloud-name>
 	PAYSTACK_SECRET_KEY=<paystack-secret-key>
 	PAYSTACK_PUBLIC_KEY=<paystack-public-key>
-	PUBLIC_BASE_URL=https://www.homespace.ng
+	PUBLIC_BASE_URL=https://homespace.ng
 	MAIL_SERVER=<smtp-host>
 	MAIL_PORT=587
 	MAIL_USE_TLS=true

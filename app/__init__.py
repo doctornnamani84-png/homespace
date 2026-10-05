@@ -39,6 +39,7 @@ def _register_blueprints(app: Flask) -> None:
     from app.bookings.routes import bookings_bp
     from app.payments.routes import payments_bp
     from app.chatbot.routes import chatbot_bp
+    from app.seo import seo_bp
     from app.properties.availability_routes import availability_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
@@ -46,6 +47,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(bookings_bp, url_prefix="/api/bookings")
     app.register_blueprint(payments_bp, url_prefix="/api/payments")
     app.register_blueprint(chatbot_bp, url_prefix="/api/chat")
+    app.register_blueprint(seo_bp)
     app.register_blueprint(availability_bp, url_prefix="/api/properties") 
     app.register_blueprint(images_bp, url_prefix="/api/properties")
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
