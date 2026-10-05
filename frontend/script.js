@@ -92,15 +92,18 @@ function clearSession() {
 
 // ---- Auth: show/hide forms ----
 
-btnShowLogin.addEventListener("click", () => {
-  loginSection.classList.toggle("hidden");
-  registerSection.classList.add("hidden");
-});
+function toggleAuthSection(sectionToToggle, otherSection) {
+  const isOpening = sectionToToggle.classList.contains("hidden");
+  sectionToToggle.classList.toggle("hidden");
+  otherSection.classList.add("hidden");
 
-btnShowRegister.addEventListener("click", () => {
-  registerSection.classList.toggle("hidden");
-  loginSection.classList.add("hidden");
-});
+  if (isOpening) {
+    sectionToToggle.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+btnShowLogin.addEventListener("click", () => toggleAuthSection(loginSection, registerSection));
+btnShowRegister.addEventListener("click", () => toggleAuthSection(registerSection, loginSection));
 
 btnLogout.addEventListener("click", () => {
   clearSession();
