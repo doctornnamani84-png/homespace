@@ -61,4 +61,4 @@ def test_sitemap_and_robots_include_canonical_property_discovery(app):
     assert sitemap_response.status_code == 200
     assert b"/property/1/new-haven-short-let-apartment" in sitemap_response.data
     assert robots_response.status_code == 200
-    assert b"Sitemap: https://homespace.ng/sitemap.xml" in robots_response.data
+    assert b"Sitemap: https://www.homespace.ng/sitemap.xml" in robots_response.data
