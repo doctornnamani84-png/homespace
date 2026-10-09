@@ -28,6 +28,21 @@ class User(db.Model):
     email_verified: bool = db.Column(
         db.Boolean, nullable=False, default=True, server_default=db.true()
     )
+    phone_number: str = db.Column(db.String(30), nullable=True)
+    identity_verification_status: str = db.Column(
+        db.String(20), nullable=False, default="unverified", server_default="unverified"
+    )
+    identity_verification_reviewed_at: datetime = db.Column(db.DateTime, nullable=True)
+    identity_verification_reviewed_by_id: int = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True
+    )
+    phone_verification_status: str = db.Column(
+        db.String(20), nullable=False, default="unverified", server_default="unverified"
+    )
+    phone_verification_reviewed_at: datetime = db.Column(db.DateTime, nullable=True)
+    phone_verification_reviewed_by_id: int = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True
+    )
     role: str = db.Column(
         db.Enum(UserRole, values_callable=lambda e: [m.value for m in e]),
         nullable=False,
@@ -64,13 +79,29 @@ class Property(db.Model):
     video_url: str = db.Column(db.String(500), nullable=True)
     listing_type: str = db.Column(db.String(10), nullable=False, default="rent")
     price_negotiable: bool = db.Column(db.Boolean, nullable=False, default=False)
+    ownership_verification_status: str = db.Column(
+        db.String(20), nullable=False, default="unverified", server_default="unverified"
+    )
+    ownership_verification_reviewed_at: datetime = db.Column(db.DateTime, nullable=True)
+    ownership_verification_reviewed_by_id: int = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True
+    )
 
     landlord_id: int = db.Column(
         db.Integer, db.ForeignKey("users.id"), nullable=False, index=True
     )
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at: datetime = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        server_default=db.func.current_timestamp(),
+    )
 
-    landlord = db.relationship("User", back_populates="properties")
+    landlord = db.relationship(
+        "User", back_populates="properties", foreign_keys=[landlord_id]
+    )
     bookings = db.relationship(
         "Booking", back_populates="property", lazy="dynamic",
         cascade="all, delete-orphan",

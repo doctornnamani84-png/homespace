@@ -43,6 +43,8 @@ function setLoggedInUI() {
   btnLogout.classList.remove("hidden");
   welcomeMessage.classList.remove("hidden");
   welcomeMessage.textContent = `Hi, ${currentUser.name} (${currentUser.role})`;
+  document.getElementById("profile-contact-section").classList.remove("hidden");
+  document.getElementById("profile-phone-number").value = currentUser.phone_number || "";
 
  if (currentUser.role === "landlord" || currentUser.role === "admin") {
     createPropertySection.classList.remove("hidden");
@@ -54,6 +56,7 @@ function setLoggedInUI() {
   if (currentUser.role === "admin") {
     document.getElementById("admin-section").classList.remove("hidden");
     loadAdminBookings();
+    loadAdminVerificationQueue();
   }
 
   if (currentUser.role === "tenant") {
@@ -67,6 +70,7 @@ function setLoggedOutUI() {
   btnShowRegister.classList.remove("hidden");
   btnLogout.classList.add("hidden");
   welcomeMessage.classList.add("hidden");
+  document.getElementById("profile-contact-section").classList.add("hidden");
   createPropertySection.classList.add("hidden");
   document.getElementById("block-dates-section").classList.add("hidden");
   document.getElementById("upload-image-section").classList.add("hidden");
@@ -110,6 +114,32 @@ btnLogout.addEventListener("click", () => {
   setLoggedOutUI();
 });
 
+document.getElementById("profile-phone-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const phone_number = document.getElementById("profile-phone-number").value;
+  try {
+    const response = await fetch(`${API_BASE}/auth/phone`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ phone_number }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showMessage("profile-phone-message", data.error || "Could not save phone number.", "error");
+      return;
+    }
+    currentUser.phone_number = data.phone_number;
+    localStorage.setItem("homespace_user", JSON.stringify(currentUser));
+    showMessage("profile-phone-message", data.message, "success");
+    if (currentUser.role === "admin") loadAdminVerificationQueue();
+  } catch (err) {
+    showMessage("profile-phone-message", "Could not reach the server.", "error");
+  }
+});
+
 // ---- Register ----
 
 document.getElementById("register-form").addEventListener("submit", async (e) => {
@@ -117,6 +147,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
 
   const name = document.getElementById("register-name").value;
   const email = document.getElementById("register-email").value;
+  const phone_number = document.getElementById("register-phone").value;
   const password = document.getElementById("register-password").value;
   const role = document.getElementById("register-role").value;
 
@@ -124,7 +155,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
     const response = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, role }),
+      body: JSON.stringify({ name, email, phone_number, password, role }),
     });
     const data = await response.json();
 
@@ -374,6 +405,8 @@ const actionButton = prop.listing_type === "sale" || !prop.is_short_let
       ${canEdit ? `<div style="font-size:0.8rem;color:#888;">ID: ${prop.id}</div>` : ""}
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>
+      ${renderVerificationBadges(prop)}
+      ${prop.updated_at ? `<p class="property-updated">Updated ${new Date(prop.updated_at).toLocaleDateString("en-GB")}</p>` : ""}
       ${prop.listing_type === "sale" && prop.price_negotiable ? `<p class="negotiable-badge">Negotiable on contact</p>` : ""}
       ${prop.review_count ? `<p class="property-rating" aria-label="Rated ${prop.average_rating} out of 5 from ${prop.review_count} reviews">★ ${prop.average_rating} <span>(${prop.review_count} verified stay${prop.review_count === 1 ? "" : "s"})</span></p>` : ""}
       <p>${escapeHtml(prop.description || "")}</p>
@@ -388,6 +421,15 @@ function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+function renderVerificationBadges(property) {
+  const badges = [];
+  if (property.owner_identity_verified) badges.push("Identity checked");
+  if (property.owner_phone_verified) badges.push("Phone checked");
+  if (property.ownership_documents_verified) badges.push("Ownership documents reviewed");
+  if (!badges.length) return "";
+  return `<ul class="verification-badges" aria-label="Verification checks">${badges.map((badge) => `<li>${badge}</li>`).join("")}</ul>`;
 }
 
 // ---- Simple booking action ----
@@ -671,6 +713,73 @@ async function loadAdminBookings() {
     `;
   } catch (err) {
     listEl.innerHTML = "<p>Could not reach the server.</p>";
+  }
+}
+
+async function loadAdminVerificationQueue() {
+  const listEl = document.getElementById("admin-verification-list");
+  listEl.innerHTML = "<p>Loading...</p>";
+  try {
+    const response = await fetch(`${API_BASE}/properties/verification-queue`, {
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      listEl.innerHTML = `<p>${escapeHtml(data.error || "Could not load verification reviews.")}</p>`;
+      return;
+    }
+    if (!data.count) {
+      listEl.innerHTML = "<p>No property listings to review.</p>";
+      return;
+    }
+    listEl.innerHTML = `
+      <table class="admin-table">
+        <thead><tr><th>Property / owner</th><th>Phone</th><th>Identity</th><th>Phone check</th><th>Ownership documents</th><th>Action</th></tr></thead>
+        <tbody>${data.properties.map(renderVerificationReviewRow).join("")}</tbody>
+      </table>`;
+  } catch (err) {
+    listEl.innerHTML = "<p>Could not reach the server.</p>";
+  }
+}
+
+function renderVerificationReviewRow(property) {
+  const options = (selected) => ["unverified", "pending", "verified", "rejected"]
+    .map((status) => `<option value="${status}" ${selected === status ? "selected" : ""}>${status}</option>`)
+    .join("");
+  return `<tr>
+    <td>${escapeHtml(property.title)}<br>${escapeHtml(property.owner_name)}</td>
+    <td>${escapeHtml(property.owner_phone_number || "Not provided")}</td>
+    <td><select id="identity-status-${property.id}">${options(property.identity_verification_status)}</select></td>
+    <td><select id="phone-status-${property.id}">${options(property.phone_verification_status)}</select></td>
+    <td><select id="ownership-status-${property.id}">${options(property.ownership_verification_status)}</select></td>
+    <td><button type="button" onclick="saveVerificationReview(${property.id})">Save</button></td>
+  </tr>`;
+}
+
+async function saveVerificationReview(propertyId) {
+  const body = {
+    identity_verification_status: document.getElementById(`identity-status-${propertyId}`).value,
+    phone_verification_status: document.getElementById(`phone-status-${propertyId}`).value,
+    ownership_verification_status: document.getElementById(`ownership-status-${propertyId}`).value,
+  };
+  try {
+    const response = await fetch(`${API_BASE}/properties/${propertyId}/verification`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not update verification status.");
+      return;
+    }
+    loadAdminVerificationQueue();
+    loadProperties();
+  } catch (err) {
+    alert("Could not reach the server.");
   }
 }
 

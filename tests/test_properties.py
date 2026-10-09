@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.models import Property, User, UserRole
+from flask_jwt_extended import create_access_token
 
 
 @pytest.fixture
@@ -17,6 +18,7 @@ def app():
             email="seo-host@example.com",
             password_hash="unused",
             role=UserRole.LANDLORD.value,
+            phone_number="+2348012345678",
         )
         db.session.add(landlord)
         db.session.flush()
@@ -62,3 +64,66 @@ def test_sitemap_and_robots_include_canonical_property_discovery(app):
     assert b"/property/1/new-haven-short-let-apartment" in sitemap_response.data
     assert robots_response.status_code == 200
     assert b"Sitemap: https://www.homespace.ng/sitemap.xml" in robots_response.data
+
+
+def test_public_property_data_shows_verification_without_phone_number(app):
+    response = app.test_client().get("/api/properties")
+
+    assert response.status_code == 200
+    property_data = response.json["properties"][0]
+    assert property_data["owner_identity_verified"] is False
+    assert property_data["owner_phone_verified"] is False
+    assert property_data["ownership_documents_verified"] is False
+    assert property_data["updated_at"]
+    assert "owner_phone_number" not in property_data
+
+
+def test_admin_can_update_verification_statuses(app):
+    with app.app_context():
+        admin = User(
+            name="HomeSpace Admin",
+            email="verification-admin@example.com",
+            password_hash="unused",
+            role=UserRole.ADMIN.value,
+        )
+        db.session.add(admin)
+        db.session.commit()
+        token = create_access_token(
+            identity=str(admin.id), additional_claims={"role": UserRole.ADMIN.value}
+        )
+
+    client = app.test_client()
+    response = client.patch(
+        "/api/properties/1/verification",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "identity_verification_status": "verified",
+            "phone_verification_status": "verified",
+            "ownership_verification_status": "verified",
+        },
+    )
+
+    assert response.status_code == 200
+    property_data = client.get("/api/properties").json["properties"][0]
+    assert property_data["owner_identity_verified"] is True
+    assert property_data["owner_phone_verified"] is True
+    assert property_data["ownership_documents_verified"] is True
+    detail = client.get("/property/1/new-haven-short-let-apartment")
+    assert b"Owner identity: Verified" in detail.data
+    assert b"Ownership documents: Reviewed" in detail.data
+
+
+def test_non_admin_cannot_update_verification_statuses(app):
+    with app.app_context():
+        landlord = User.query.filter_by(email="seo-host@example.com").one()
+        token = create_access_token(
+            identity=str(landlord.id), additional_claims={"role": UserRole.LANDLORD.value}
+        )
+
+    response = app.test_client().patch(
+        "/api/properties/1/verification",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"ownership_verification_status": "verified"},
+    )
+
+    assert response.status_code == 403

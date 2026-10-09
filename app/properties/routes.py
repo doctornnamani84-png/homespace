@@ -1,10 +1,12 @@
 """Property listing and search endpoints."""
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 
 from app.extensions import db
 from app.seo import property_page_url
-from app.models import Property, PropertyReview
+from app.models import Property, PropertyReview, User
 from app.utils import role_required
 
 properties_bp = Blueprint("properties", __name__)
@@ -204,6 +206,79 @@ def update_property(property_id: int):
         "property": _serialize_property(target_property),
     }), 200
 
+
+VERIFICATION_STATUSES = {"unverified", "pending", "verified", "rejected"}
+
+
+@properties_bp.route("/verification-queue", methods=["GET"])
+@jwt_required()
+@role_required("admin")
+def list_verification_queue():
+    properties = Property.query.order_by(Property.created_at.desc()).all()
+    return jsonify({
+        "count": len(properties),
+        "properties": [
+            {
+                "id": prop.id,
+                "title": prop.title,
+                "owner_name": prop.landlord.name,
+                "owner_phone_number": prop.landlord.phone_number,
+                "identity_verification_status": prop.landlord.identity_verification_status,
+                "phone_verification_status": prop.landlord.phone_verification_status,
+                "ownership_verification_status": prop.ownership_verification_status,
+            }
+            for prop in properties
+        ],
+    }), 200
+
+
+@properties_bp.route("/<int:property_id>/verification", methods=["PATCH"])
+@jwt_required()
+@role_required("admin")
+def update_property_verification(property_id: int):
+    target_property = db.session.get(Property, property_id)
+    if target_property is None:
+        return jsonify({"error": "property not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    status_fields = {
+        "identity_verification_status": (
+            target_property.landlord,
+            "identity_verification_reviewed_at",
+            "identity_verification_reviewed_by_id",
+        ),
+        "phone_verification_status": (
+            target_property.landlord,
+            "phone_verification_reviewed_at",
+            "phone_verification_reviewed_by_id",
+        ),
+        "ownership_verification_status": (
+            target_property,
+            "ownership_verification_reviewed_at",
+            "ownership_verification_reviewed_by_id",
+        ),
+    }
+    if not data or set(data) - set(status_fields):
+        return jsonify({"error": "provide one or more valid verification statuses"}), 400
+
+    for field, value in data.items():
+        if not isinstance(value, str) or value not in VERIFICATION_STATUSES:
+            return jsonify({"error": f"invalid status for {field}"}), 400
+        if field == "phone_verification_status" and value == "verified":
+            if not target_property.landlord.phone_number:
+                return jsonify({"error": "add an owner phone number before verifying it"}), 400
+
+    admin_id = int(get_jwt_identity())
+    reviewed_at = datetime.utcnow()
+    for field, value in data.items():
+        entity, reviewed_at_field, reviewed_by_field = status_fields[field]
+        setattr(entity, field, value)
+        setattr(entity, reviewed_at_field, reviewed_at)
+        setattr(entity, reviewed_by_field, admin_id)
+
+    db.session.commit()
+    return jsonify({"message": "verification status updated"}), 200
+
 @properties_bp.route("/<int:property_id>", methods=["DELETE"])
 @jwt_required()
 @role_required("admin")
@@ -244,9 +319,13 @@ def _serialize_property(prop: Property, review_summary: dict | None = None) -> d
         "video_url": prop.video_url,
         "listing_type": prop.listing_type,
         "price_negotiable": prop.price_negotiable,
+        "owner_identity_verified": prop.landlord.identity_verification_status == "verified",
+        "owner_phone_verified": prop.landlord.phone_verification_status == "verified",
+        "ownership_documents_verified": prop.ownership_verification_status == "verified",
         "page_url": property_page_url(prop.id, prop.title),
         "average_rating": review_summary["average_rating"],
         "review_count": review_summary["review_count"],
         "landlord_id": prop.landlord_id,
         "created_at": prop.created_at.isoformat() if prop.created_at else None,
+        "updated_at": prop.updated_at.isoformat() if prop.updated_at else None,
     }

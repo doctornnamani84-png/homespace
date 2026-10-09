@@ -4,7 +4,12 @@ import ssl
 from email.message import EmailMessage
 
 from flask import Blueprint, current_app, jsonify, request
-from flask_jwt_extended import create_access_token, create_refresh_token
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    get_jwt_identity,
+    jwt_required,
+)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.extensions import db, bcrypt, limiter
@@ -96,6 +101,12 @@ def register():
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
     role = (data.get("role") or UserRole.TENANT.value).strip().lower()
+    raw_phone_number = data.get("phone_number")
+    if raw_phone_number is not None and not isinstance(raw_phone_number, str):
+        return jsonify({"error": "phone_number must be text"}), 400
+    phone_number = (raw_phone_number or "").strip() or None
+    if phone_number and len(phone_number) > 30:
+        return jsonify({"error": "phone number must be 30 characters or fewer"}), 400
 
     if not name or not email or not password:
         return jsonify({"error": "name, email, and password are required"}), 400
@@ -118,6 +129,7 @@ def register():
         password_hash=hash_password(password),
         role=role,
         email_verified=False,
+        phone_number=phone_number,
     )
     db.session.add(user)
     db.session.commit()
@@ -223,5 +235,41 @@ def login():
     return jsonify({
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role},
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "phone_number": user.phone_number,
+        },
+    }), 200
+
+
+@auth_bp.route("/phone", methods=["PUT"])
+@jwt_required()
+def update_phone_number():
+    data = request.get_json(silent=True) or {}
+    phone_number = data.get("phone_number")
+    if not isinstance(phone_number, str):
+        return jsonify({"error": "phone_number must be text"}), 400
+
+    phone_number = phone_number.strip()
+    if len(phone_number) > 30:
+        return jsonify({"error": "phone number must be 30 characters or fewer"}), 400
+
+    user = db.session.get(User, int(get_jwt_identity()))
+    if user is None:
+        return jsonify({"error": "user not found"}), 404
+
+    if phone_number != (user.phone_number or ""):
+        user.phone_number = phone_number or None
+        user.phone_verification_status = "unverified"
+        user.phone_verification_reviewed_at = None
+        user.phone_verification_reviewed_by_id = None
+        db.session.commit()
+
+    return jsonify({
+        "message": "phone number saved. It remains unverified until HomeSpace checks it.",
+        "phone_number": user.phone_number,
+        "phone_verification_status": user.phone_verification_status,
     }), 200

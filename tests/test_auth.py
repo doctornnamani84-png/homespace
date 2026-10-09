@@ -4,6 +4,7 @@ from app import create_app
 from app.auth.routes import _verification_serializer, hash_password
 from app.extensions import db
 from app.models import User, UserRole
+from flask_jwt_extended import create_access_token
 
 
 @pytest.fixture
@@ -26,9 +27,11 @@ def test_new_account_must_verify_email_before_login(app, monkeypatch):
 			"email": "new-tenant@example.com",
 			"password": "a-long-test-password",
 			"role": "tenant",
+			"phone_number": "+2348012345678",
 		},
 	)
 	assert registration.status_code == 201
+	assert User.query.filter_by(email="new-tenant@example.com").one().phone_number == "+2348012345678"
 
 	login_payload = {
 		"email": "new-tenant@example.com",
@@ -104,3 +107,28 @@ def test_invalid_verification_token_is_rejected(app):
 	)
 
 	assert response.status_code == 400
+
+
+def test_user_phone_update_resets_previous_verification(app):
+	user = User(
+		name="Existing Landlord",
+		email="phone-owner@example.com",
+		password_hash=hash_password("a-long-test-password"),
+		role=UserRole.LANDLORD.value,
+		phone_number="+2348011111111",
+		phone_verification_status="verified",
+	)
+	db.session.add(user)
+	db.session.commit()
+	with app.app_context():
+		token = create_access_token(identity=str(user.id))
+
+	response = app.test_client().put(
+		"/api/auth/phone",
+		headers={"Authorization": f"Bearer {token}"},
+		json={"phone_number": "+2348022222222"},
+	)
+
+	assert response.status_code == 200
+	assert response.json["phone_verification_status"] == "unverified"
+	assert db.session.get(User, user.id).phone_number == "+2348022222222"

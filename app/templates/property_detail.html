@@ -31,6 +31,15 @@
       {% if listing.price_negotiable and listing.listing_type == "sale" %}
         <p class="negotiable-badge">Negotiable on contact</p>
       {% endif %}
+      <section class="property-trust" aria-label="Owner and property checks">
+        <h2>Listing details</h2>
+        <ul>
+          <li>Owner identity: {{ "Verified" if listing.landlord.identity_verification_status == "verified" else "Not verified" }}</li>
+          <li>Phone: {{ "Verified" if listing.landlord.phone_verification_status == "verified" else "Not verified" }}</li>
+          <li>Ownership documents: {{ "Reviewed" if listing.ownership_verification_status == "verified" else "Not verified" }}</li>
+        </ul>
+        <p class="property-updated">Updated {{ listing.updated_at.strftime("%d %b %Y") }}</p>
+      </section>
       {% if review_count %}
         <p class="property-rating">&#9733; {{ average_rating }} ({{ review_count }} verified stay reviews)</p>
       {% endif %}
