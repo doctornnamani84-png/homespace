@@ -43,8 +43,12 @@ function setLoggedInUI() {
   btnLogout.classList.remove("hidden");
   welcomeMessage.classList.remove("hidden");
   welcomeMessage.textContent = `Hi, ${currentUser.name} (${currentUser.role})`;
-  document.getElementById("profile-contact-section").classList.remove("hidden");
-  document.getElementById("profile-phone-number").value = currentUser.phone_number || "";
+  const profileContactSection = document.getElementById("profile-contact-section");
+  const canManageOwnerPhone = currentUser.role === "landlord" || currentUser.role === "admin";
+  profileContactSection.classList.toggle("hidden", !canManageOwnerPhone);
+  if (canManageOwnerPhone) {
+    document.getElementById("profile-phone-number").value = currentUser.phone_number || "";
+  }
 
  if (currentUser.role === "landlord" || currentUser.role === "admin") {
     createPropertySection.classList.remove("hidden");
