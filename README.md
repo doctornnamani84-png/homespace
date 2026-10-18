@@ -10,7 +10,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env`, set the local database and service credentials, then start the app with `python wsgi.py`. The app serves the frontend and API from the same Flask process.
+Copy `.env.example` to `.env`, set the local database and service credentials, then start the app with `python wsgi.py`. The app serves the frontend and API from the same Flask process. Booking email updates require the SMTP settings in `.env`; property Q&A requires an Anthropic API key and model. Listing map markers require landlords to enter latitude and longitude; map tiles are provided by OpenStreetMap.
 
 ## Deploy to PythonAnywhere
 
@@ -44,7 +44,7 @@ Copy `.env.example` to `.env`, set the local database and service credentials, t
 	MAIL_DEFAULT_SENDER=<verified-sender-address>
 	```
 
-	New tenant and landlord accounts must verify their email before logging in. Configure an SMTP provider and a verified sender address for delivery; existing accounts remain able to log in. `CLOUDINARY_URL` is needed for property image/video uploads. Paystack keys are needed for live payment flows. The chatbot currently returns a placeholder even when an Anthropic key is set because its API integration is not implemented yet. Keep `.env` private and never commit it.
+	New tenant and landlord accounts must verify their email before logging in. Configure an SMTP provider and a verified sender address for delivery; existing accounts remain able to log in. `CLOUDINARY_URL` is needed for property image/video uploads. Paystack keys are needed for live payment flows. Set `ANTHROPIC_API_KEY` to enable listing-grounded property Q&A. Keep `.env` private and never commit it.
 6. In the **Web** tab, set the source code directory to `/home/<your-username>/homespace`, the virtualenv to `/home/<your-username>/venvs/homespace`, and edit the WSGI configuration file. Keep its generated imports/comments if desired, but set the project path and application as follows:
 
 	```python

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 148" role="img" aria-labelledby="title description">
+  <title id="title">HomeSpace</title>
+  <desc id="description">Find your place. Feel at home.</desc>
+  <g transform="translate(7 5)">
+    <path d="M49 3 91 19v28c0 25-16 43-42 54C23 90 7 72 7 47V19L49 3Z" fill="#0C746A" stroke="#F0BE55" stroke-width="3"/>
+    <path d="m21 46 28-23 28 23" fill="none" stroke="#F6D98B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M27 45v31h44V45" fill="#F6F0DF" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M43 76V55h13v21" fill="#E88755" stroke="#0C746A" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M16 83h66" stroke="#F6D98B" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="70" cy="31" r="5" fill="#E88755"/>
+  </g>
+  <text x="116" y="60" fill="#173D2B" font-family="Georgia, 'Times New Roman', serif" font-size="42" font-weight="700" letter-spacing=".4">HomeSpace</text>
+  <path d="M218 117h44" stroke="#E88755" stroke-width="3" stroke-linecap="round"/>
+  <text x="240" y="140" text-anchor="middle" fill="#0C746A" font-family="Arial, sans-serif" font-size="15" font-weight="700" letter-spacing="1.1">FIND YOUR PLACE. FEEL AT HOME.</text>
+</svg>

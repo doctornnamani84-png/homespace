@@ -9,7 +9,7 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app
 from app.extensions import db
-from app.models import Booking, BookingStatus, Property, PropertyVideo, User
+from app.models import Booking, BookingStatus, Property, PropertyVideo, User, UserRole
 
 
 @pytest.fixture
@@ -27,7 +27,13 @@ def app():
 def property_data(app):
 	landlord = User(name="Host", email="host@example.com", password_hash="unused")
 	tenant = User(name="Guest", email="guest@example.com", password_hash="unused")
-	db.session.add_all([landlord, tenant])
+	admin = User(
+		name="Admin",
+		email="booking-admin@example.com",
+		password_hash="unused",
+		role=UserRole.ADMIN.value,
+	)
+	db.session.add_all([landlord, tenant, admin])
 	db.session.flush()
 
 	short_let = Property(
@@ -63,12 +69,16 @@ def property_data(app):
 	landlord_token = create_access_token(
 		identity=str(landlord.id), additional_claims={"role": "landlord"}
 	)
+	admin_token = create_access_token(
+		identity=str(admin.id), additional_claims={"role": UserRole.ADMIN.value}
+	)
 	return {
 		"short_let_id": short_let.id,
 		"monthly_rental_id": monthly_rental.id,
 		"sale_id": sale.id,
 		"token": token,
 		"landlord_token": landlord_token,
+		"admin_token": admin_token,
 	}
 
 
@@ -227,6 +237,67 @@ def test_webhook_requires_matching_reference_amount_and_currency(app, property_d
 
 	assert confirmed_response.status_code == 200
 	assert db.session.get(Booking, booking_id).status == BookingStatus.CONFIRMED.value
+
+
+def test_booking_notifications_follow_pending_and_confirmed_transitions(
+	app, property_data, monkeypatch
+):
+	notifications = []
+	monkeypatch.setattr(
+		"app.bookings.routes.send_booking_update",
+		lambda booking, event: notifications.append((booking.id, event)),
+	)
+	monkeypatch.setattr(
+		"app.payments.routes.send_booking_update",
+		lambda booking, event: notifications.append((booking.id, event)),
+	)
+	client = app.test_client()
+	booking_response = create_booking(client, property_data)
+	booking_id = booking_response.json["booking"]["id"]
+	booking = db.session.get(Booking, booking_id)
+	booking.paystack_reference = "notification_ref"
+	db.session.commit()
+	assert notifications == [(booking_id, "pending")]
+
+	payload = {
+		"event": "charge.success",
+		"data": {
+			"metadata": {"booking_id": booking_id},
+			"reference": "notification_ref",
+			"amount": 21000,
+			"currency": "NGN",
+		},
+	}
+	raw_payload = json.dumps(payload, separators=(",", ":")).encode()
+	signature = hmac.new(
+		b"test-paystack-secret", raw_payload, hashlib.sha512
+	).hexdigest()
+	response = client.post(
+		"/api/payments/webhook",
+		data=raw_payload,
+		headers={"x-paystack-signature": signature, "Content-Type": "application/json"},
+	)
+
+	assert response.status_code == 200
+	assert notifications == [(booking_id, "pending"), (booking_id, "confirmed")]
+
+
+def test_admin_cancellation_sends_booking_update(app, property_data, monkeypatch):
+	notifications = []
+	monkeypatch.setattr(
+		"app.bookings.routes.send_booking_update",
+		lambda booking, event: notifications.append((booking.id, event)),
+	)
+	client = app.test_client()
+	booking_id = create_booking(client, property_data).json["booking"]["id"]
+
+	response = client.patch(
+		f"/api/bookings/{booking_id}/cancel",
+		headers={"Authorization": f"Bearer {property_data['admin_token']}"},
+	)
+
+	assert response.status_code == 200
+	assert notifications == [(booking_id, "pending"), (booking_id, "cancelled")]
 
 
 def test_property_search_filters_listing_and_short_let_type(app, property_data):

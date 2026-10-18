@@ -10,6 +10,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models import Booking, BookingStatus
+from app.notifications import send_booking_update
 
 payments_bp = Blueprint("payments", __name__)
 
@@ -137,5 +138,6 @@ def paystack_webhook():
 
             booking.status = BookingStatus.CONFIRMED.value
             db.session.commit()
+            send_booking_update(booking, "confirmed")
 
     return jsonify({"received": True}), 200

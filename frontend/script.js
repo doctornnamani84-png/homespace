@@ -4,6 +4,9 @@ const API_BASE = "/api";
 let currentUser = JSON.parse(localStorage.getItem("homespace_user") || "null");
 let accessToken = localStorage.getItem("homespace_token") || null;
 const propertiesById = new Map();
+const favoritePropertyIds = new Set();
+let propertyMap;
+let propertyMapMarkers;
 
 // ---- DOM references ----
 const loginSection = document.getElementById("login-section");
@@ -61,12 +64,15 @@ function setLoggedInUI() {
     document.getElementById("admin-section").classList.remove("hidden");
     loadAdminBookings();
     loadAdminVerificationQueue();
+    loadAdminPropertyReports();
   }
 
   if (currentUser.role === "tenant") {
     document.getElementById("my-bookings-section").classList.remove("hidden");
     loadMyBookings();
   }
+  document.getElementById("my-favorites-section").classList.remove("hidden");
+  loadMyFavorites();
 }
 
 function setLoggedOutUI() {
@@ -81,7 +87,10 @@ function setLoggedOutUI() {
   document.getElementById("upload-video-section").classList.add("hidden");
   document.getElementById("admin-section").classList.add("hidden");
   document.getElementById("my-bookings-section").classList.add("hidden");
+  document.getElementById("my-favorites-section").classList.add("hidden");
   document.getElementById("edit-property-section").classList.add("hidden");
+  favoritePropertyIds.clear();
+  loadProperties();
 }
 
 function saveSession(user, token) {
@@ -265,6 +274,10 @@ document.getElementById("create-property-form").addEventListener("submit", async
         title,
         description,
         location,
+        bedrooms: document.getElementById("prop-bedrooms").value === "" ? null : Number(document.getElementById("prop-bedrooms").value),
+        amenities: document.getElementById("prop-amenities").value.split(",").map((item) => item.trim()).filter(Boolean),
+        latitude: document.getElementById("prop-latitude").value === "" ? null : Number(document.getElementById("prop-latitude").value),
+        longitude: document.getElementById("prop-longitude").value === "" ? null : Number(document.getElementById("prop-longitude").value),
         is_short_let: isShortLet,
         price_per_night: pricePerNight ? Number(pricePerNight) : null,
         monthly_rent: monthlyRent ? Number(monthlyRent) : null,
@@ -300,6 +313,9 @@ async function loadProperties(location) {
   const selectedType = document.getElementById("filter-type").value;
   const minPrice = document.getElementById("filter-min-price").value;
   const maxPrice = document.getElementById("filter-max-price").value;
+  const minBedrooms = document.getElementById("filter-bedrooms").value;
+  const amenities = document.getElementById("filter-amenities").value
+    .split(",").map((item) => item.trim()).filter(Boolean);
   if (locationFilter) params.set("location", locationFilter);
   if (selectedType === "short_let") {
     params.set("listing_type", "rent");
@@ -312,20 +328,30 @@ async function loadProperties(location) {
   }
   if (minPrice) params.set("min_price", minPrice);
   if (maxPrice) params.set("max_price", maxPrice);
+  if (minBedrooms) params.set("min_bedrooms", minBedrooms);
+  if (amenities.length) params.set("amenities", amenities.join(","));
+  params.set("sort_by", document.getElementById("filter-sort").value);
   const url = `${API_BASE}/properties${params.size ? `?${params}` : ""}`;
 
   try {
     const response = await fetch(url);
     const data = await response.json();
 
-    if (!response.ok || data.count === 0) {
+    if (!response.ok) {
       propertiesById.clear();
-      listEl.innerHTML = "<p>No properties found.</p>";
+      listEl.textContent = data.error || "Could not load properties.";
+      await loadListingMap([]);
       return;
     }
 
     propertiesById.clear();
     data.properties.forEach((property) => propertiesById.set(property.id, property));
+    populatePropertyQuestionOptions(data.properties);
+    await loadListingMap(data.properties);
+    if (data.count === 0) {
+      listEl.innerHTML = "<p>No properties found.</p>";
+      return;
+    }
     const cardsHtml = await Promise.all(data.properties.map(renderPropertyCard));
     listEl.innerHTML = cardsHtml.join("");
   } catch (err) {
@@ -335,6 +361,7 @@ async function loadProperties(location) {
 
 async function renderPropertyCard(prop) {
   const canEdit = currentUser && (currentUser.role === "admin" || currentUser.id === prop.landlord_id);
+  const isFavorite = favoritePropertyIds.has(prop.id);
   let priceText;
   
   if (prop.listing_type === "sale") {
@@ -401,8 +428,23 @@ const actionButton = prop.listing_type === "sale" || !prop.is_short_let
     const deleteButton = (currentUser && currentUser.role === "admin")
     ? `<button class="delete-btn" onclick="deleteProperty(${prop.id})">Delete</button>`
     : "";
+    const favoriteButton = currentUser
+      ? `<button type="button" class="favorite-btn ${isFavorite ? "is-favorite" : ""}" onclick="toggleFavorite(${prop.id})" aria-pressed="${isFavorite}">${isFavorite ? "♥ Saved" : "♡ Save"}</button>`
+      : "";
+    const reportButton = currentUser && currentUser.id !== prop.landlord_id
+      ? `<button type="button" class="report-btn" onclick="openReportDialog(${prop.id})">Report listing</button>`
+      : "";
+    const listingFacts = [
+      prop.bedrooms !== null && prop.bedrooms !== undefined
+        ? (prop.bedrooms === 0 ? "Studio" : `${prop.bedrooms} bedroom${prop.bedrooms === 1 ? "" : "s"}`)
+        : "",
+      ...(prop.amenities || []),
+    ].filter(Boolean);
+    const listingFactsHtml = listingFacts.length
+      ? `<ul class="listing-facts">${listingFacts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join("")}</ul>`
+      : "";
 
-  return `
+    return `
     <div class="property-card" id="property-${prop.id}">
       ${imagesHtml}
       <h3><a class="property-title-link" href="${escapeHtml(prop.page_url)}">${escapeHtml(prop.title)}</a></h3>
@@ -410,12 +452,15 @@ const actionButton = prop.listing_type === "sale" || !prop.is_short_let
       <div class="location">${escapeHtml(prop.location)}</div>
       <div class="price">${priceText}</div>
       ${renderVerificationBadges(prop)}
+      ${listingFactsHtml}
       ${prop.updated_at ? `<p class="property-updated">Updated ${new Date(prop.updated_at).toLocaleDateString("en-GB")}</p>` : ""}
       ${prop.listing_type === "sale" && prop.price_negotiable ? `<p class="negotiable-badge">Negotiable on contact</p>` : ""}
       ${prop.review_count ? `<p class="property-rating" aria-label="Rated ${prop.average_rating} out of 5 from ${prop.review_count} reviews">★ ${prop.average_rating} <span>(${prop.review_count} verified stay${prop.review_count === 1 ? "" : "s"})</span></p>` : ""}
       <p>${escapeHtml(prop.description || "")}</p>
       ${videoHtml}
       ${actionButton}
+      ${favoriteButton}
+      ${reportButton}
       ${editButton}
       ${deleteButton}
     </div>
@@ -428,13 +473,198 @@ function escapeHtml(text) {
 }
 
 function renderVerificationBadges(property) {
-  const badges = [];
-  if (property.owner_identity_verified) badges.push("Identity checked");
-  if (property.owner_phone_verified) badges.push("Phone checked");
-  if (property.ownership_documents_verified) badges.push("Ownership documents reviewed");
-  if (!badges.length) return "";
-  return `<ul class="verification-badges" aria-label="Verification checks">${badges.map((badge) => `<li>${badge}</li>`).join("")}</ul>`;
+  const badges = [
+    ["Owner identity", property.owner_identity_verified],
+    ["Owner phone", property.owner_phone_verified],
+    ["Ownership documents", property.ownership_documents_verified],
+  ];
+  return `<ul class="verification-badges" aria-label="Listing verification status">${badges.map(([label, verified]) => `<li class="${verified ? "verified" : "not-verified"}">${verified ? "✓" : "○"} ${label}: ${verified ? "verified" : "not verified"}</li>`).join("")}</ul>`;
 }
+
+async function loadListingMap(properties) {
+  const mapElement = document.getElementById("property-map");
+  const message = document.getElementById("property-map-message");
+  const mappedProperties = properties.filter(
+    (property) => property.latitude !== null && property.longitude !== null
+      && Number.isFinite(Number(property.latitude))
+      && Number.isFinite(Number(property.longitude))
+  );
+  if (!mappedProperties.length) {
+    mapElement.classList.add("hidden");
+    message.textContent = properties.length
+      ? "Map locations appear when a listing includes its coordinates."
+      : "";
+    return;
+  }
+  if (typeof L === "undefined") {
+    mapElement.classList.add("hidden");
+    message.textContent = "Map tiles are unavailable. Listing locations are shown on each property card.";
+    return;
+  }
+
+  mapElement.classList.remove("hidden");
+  message.textContent = "";
+  if (!propertyMap) {
+    propertyMap = L.map(mapElement).setView(
+      [mappedProperties[0].latitude, mappedProperties[0].longitude], 12
+    );
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(propertyMap);
+    propertyMapMarkers = L.featureGroup().addTo(propertyMap);
+  }
+  propertyMapMarkers.clearLayers();
+  mappedProperties.forEach((property) => {
+    const marker = L.marker([property.latitude, property.longitude]);
+    marker.bindPopup(
+      `<strong>${escapeHtml(property.title)}</strong><br>${escapeHtml(property.location)}`
+    );
+    propertyMapMarkers.addLayer(marker);
+  });
+  propertyMap.fitBounds(propertyMapMarkers.getBounds().pad(0.15), { maxZoom: 14 });
+  propertyMap.invalidateSize();
+}
+
+function populatePropertyQuestionOptions(properties) {
+  const select = document.getElementById("property-qa-listing");
+  const selected = select.value;
+  select.innerHTML = '<option value="">Choose a property</option>' +
+    properties.map((property) =>
+      `<option value="${property.id}">${escapeHtml(property.title)} — ${escapeHtml(property.location)}</option>`
+    ).join("");
+  if (properties.some((property) => String(property.id) === selected)) {
+    select.value = selected;
+  }
+}
+
+async function toggleFavorite(propertyId) {
+  if (!accessToken) {
+    alert("Log in to save properties.");
+    return;
+  }
+  const saving = !favoritePropertyIds.has(propertyId);
+  try {
+    const response = await fetch(`${API_BASE}/properties/favorites/${propertyId}`, {
+      method: saving ? "PUT" : "DELETE",
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not update saved properties.");
+      return;
+    }
+    if (saving) favoritePropertyIds.add(propertyId);
+    else favoritePropertyIds.delete(propertyId);
+    await loadMyFavorites();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
+
+async function loadMyFavorites() {
+  const list = document.getElementById("my-favorites-list");
+  if (!accessToken || !list) return;
+  list.innerHTML = "<p>Loading saved properties...</p>";
+  try {
+    const response = await fetch(`${API_BASE}/properties/favorites`, {
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      list.textContent = data.error || "Could not load saved properties.";
+      return;
+    }
+    favoritePropertyIds.clear();
+    data.properties.forEach((property) => favoritePropertyIds.add(property.id));
+    if (!data.count) {
+      list.innerHTML = "<p>Your saved properties will appear here.</p>";
+    } else {
+      list.innerHTML = (await Promise.all(data.properties.map(renderPropertyCard))).join("");
+    }
+    await refreshRenderedFavoriteButtons();
+  } catch (err) {
+    list.textContent = "Could not reach the server.";
+  }
+}
+
+async function refreshRenderedFavoriteButtons() {
+  document.querySelectorAll("#properties-list .favorite-btn").forEach((button) => {
+    const cardId = button.closest(".property-card")?.id;
+    const propertyId = Number(cardId?.replace("property-", ""));
+    const saved = favoritePropertyIds.has(propertyId);
+    button.classList.toggle("is-favorite", saved);
+    button.setAttribute("aria-pressed", String(saved));
+    button.textContent = saved ? "♥ Saved" : "♡ Save";
+  });
+}
+
+function openReportDialog(propertyId) {
+  if (!accessToken) {
+    alert("Log in to report a listing.");
+    return;
+  }
+  document.getElementById("report-property-id").value = propertyId;
+  document.getElementById("report-property-message").textContent = "";
+  document.getElementById("report-property-dialog").showModal();
+}
+
+document.getElementById("close-report-dialog").addEventListener("click", () => {
+  document.getElementById("report-property-dialog").close();
+});
+
+document.getElementById("report-property-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const propertyId = document.getElementById("report-property-id").value;
+  try {
+    const response = await fetch(`${API_BASE}/properties/${propertyId}/reports`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        reason: document.getElementById("report-property-reason").value,
+        details: document.getElementById("report-property-details").value,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showMessage("report-property-message", data.error || "Could not send report.", "error");
+      return;
+    }
+    showMessage("report-property-message", "Thank you. Your report was sent for review.", "success");
+    event.target.reset();
+    window.setTimeout(() => document.getElementById("report-property-dialog").close(), 900);
+  } catch (err) {
+    showMessage("report-property-message", "Could not reach the server.", "error");
+  }
+});
+
+document.getElementById("property-qa-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const answer = document.getElementById("property-qa-answer");
+  answer.className = "message";
+  answer.textContent = "Getting an answer from the listing details...";
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        property_id: Number(document.getElementById("property-qa-listing").value),
+        question: document.getElementById("property-qa-question").value.trim(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showMessage("property-qa-answer", data.error || "Could not answer that question.", "error");
+      return;
+    }
+    showMessage("property-qa-answer", data.answer, "success");
+  } catch (err) {
+    showMessage("property-qa-answer", "Could not reach the server.", "error");
+  }
+});
 
 // ---- Simple booking action ----
 
@@ -787,6 +1017,59 @@ async function saveVerificationReview(propertyId) {
   }
 }
 
+async function loadAdminPropertyReports() {
+  const listEl = document.getElementById("admin-property-reports");
+  listEl.innerHTML = "<p>Loading listing reports...</p>";
+  try {
+    const response = await fetch(`${API_BASE}/properties/reports`, {
+      headers: { "Authorization": `Bearer ${accessToken}` },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      listEl.textContent = data.error || "Could not load listing reports.";
+      return;
+    }
+    if (!data.count) {
+      listEl.innerHTML = "<p>No listing safety reports.</p>";
+      return;
+    }
+    listEl.innerHTML = `<table class="admin-table">
+      <thead><tr><th>Listing</th><th>Reason</th><th>Details</th><th>Reporter</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>${data.reports.map((report) => `<tr>
+        <td>${escapeHtml(report.property_title)}<br>${escapeHtml(report.property_location)}</td>
+        <td>${escapeHtml(report.reason.replaceAll("_", " "))}</td>
+        <td>${escapeHtml(report.details || "—")}</td>
+        <td>${escapeHtml(report.reporter_name)}</td>
+        <td>${escapeHtml(report.status)}</td>
+        <td>${report.status === "open" ? `<button type="button" onclick="reviewPropertyReport(${report.id}, 'reviewed')">Mark reviewed</button><button type="button" onclick="reviewPropertyReport(${report.id}, 'dismissed')">Dismiss</button>` : "—"}</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+  } catch (err) {
+    listEl.textContent = "Could not reach the server.";
+  }
+}
+
+async function reviewPropertyReport(reportId, status) {
+  try {
+    const response = await fetch(`${API_BASE}/properties/reports/${reportId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      alert(data.error || "Could not update the report.");
+      return;
+    }
+    loadAdminPropertyReports();
+  } catch (err) {
+    alert("Could not reach the server.");
+  }
+}
+
 function renderAdminBookingRow(booking) {
   const canCancel = booking.status !== "cancelled";
   const cancelCell = canCancel
@@ -980,6 +1263,10 @@ function openEditForm(prop) {
   document.getElementById("edit-prop-title").value = prop.title;
   document.getElementById("edit-prop-description").value = prop.description || "";
   document.getElementById("edit-prop-location").value = prop.location;
+  document.getElementById("edit-prop-bedrooms").value = prop.bedrooms ?? "";
+  document.getElementById("edit-prop-amenities").value = (prop.amenities || []).join(", ");
+  document.getElementById("edit-prop-latitude").value = prop.latitude ?? "";
+  document.getElementById("edit-prop-longitude").value = prop.longitude ?? "";
   document.getElementById("edit-prop-is-short-let").checked = prop.is_short_let;
   document.getElementById("edit-prop-price-per-night").value = prop.price_per_night || "";
   document.getElementById("edit-prop-monthly-rent").value = prop.monthly_rent || "";
@@ -1018,6 +1305,10 @@ document.getElementById("edit-property-form").addEventListener("submit", async (
         title,
         description,
         location,
+        bedrooms: document.getElementById("edit-prop-bedrooms").value === "" ? null : Number(document.getElementById("edit-prop-bedrooms").value),
+        amenities: document.getElementById("edit-prop-amenities").value.split(",").map((item) => item.trim()).filter(Boolean),
+        latitude: document.getElementById("edit-prop-latitude").value === "" ? null : Number(document.getElementById("edit-prop-latitude").value),
+        longitude: document.getElementById("edit-prop-longitude").value === "" ? null : Number(document.getElementById("edit-prop-longitude").value),
         is_short_let: isShortLet,
         price_per_night: pricePerNight ? Number(pricePerNight) : null,
         monthly_rent: monthlyRent ? Number(monthlyRent) : null,

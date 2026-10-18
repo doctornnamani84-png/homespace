@@ -30,6 +30,10 @@ class BaseConfig:
     MAIL_USERNAME: str = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD: str = os.environ.get("MAIL_PASSWORD", "")
     MAIL_DEFAULT_SENDER: str = os.environ.get("MAIL_DEFAULT_SENDER", "")
+    ANTHROPIC_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL: str = os.environ.get(
+        "ANTHROPIC_MODEL", "claude-3-5-haiku-latest"
+    )
     PUBLIC_BASE_URL: str = os.environ.get("PUBLIC_BASE_URL", "https://www.homespace.ng")
     EMAIL_VERIFICATION_MAX_AGE: int = 24 * 60 * 60
 

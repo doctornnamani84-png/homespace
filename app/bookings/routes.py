@@ -7,6 +7,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models import Booking, Property, BookingStatus, PropertyReview, UnavailableDate
+from app.notifications import send_booking_update
 from app.utils import role_required
 
 bookings_bp = Blueprint("bookings", __name__)
@@ -158,6 +159,7 @@ def create_booking():
     )
     db.session.add(booking)
     db.session.commit()
+    send_booking_update(booking, "pending")
 
     return jsonify({
         "message": "booking request created successfully",
@@ -233,6 +235,7 @@ def cancel_booking(booking_id: int):
 
     booking.status = BookingStatus.CANCELLED.value
     db.session.commit()
+    send_booking_update(booking, "cancelled")
 
     return jsonify({
         "message": "booking cancelled successfully",

@@ -58,6 +58,15 @@ class User(db.Model):
         "Booking", back_populates="tenant", lazy="dynamic",
         foreign_keys="Booking.tenant_id",
     )
+    favorites = db.relationship(
+        "Favorite", back_populates="user", cascade="all, delete-orphan"
+    )
+    property_reports = db.relationship(
+        "PropertyReport",
+        back_populates="reporter",
+        cascade="all, delete-orphan",
+        foreign_keys="PropertyReport.reporter_id",
+    )
 
     def __repr__(self) -> str:
         return f"<User {self.id} {self.email} ({self.role})>"
@@ -79,6 +88,10 @@ class Property(db.Model):
     video_url: str = db.Column(db.String(500), nullable=True)
     listing_type: str = db.Column(db.String(10), nullable=False, default="rent")
     price_negotiable: bool = db.Column(db.Boolean, nullable=False, default=False)
+    bedrooms: int = db.Column(db.Integer, nullable=True)
+    amenities: str = db.Column(db.Text, nullable=False, default="")
+    latitude: float = db.Column(db.Float, nullable=True)
+    longitude: float = db.Column(db.Float, nullable=True)
     ownership_verification_status: str = db.Column(
         db.String(20), nullable=False, default="unverified", server_default="unverified"
     )
@@ -105,6 +118,12 @@ class Property(db.Model):
     bookings = db.relationship(
         "Booking", back_populates="property", lazy="dynamic",
         cascade="all, delete-orphan",
+    )
+    favorites = db.relationship(
+        "Favorite", back_populates="property", cascade="all, delete-orphan"
+    )
+    reports = db.relationship(
+        "PropertyReport", back_populates="property", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
@@ -256,4 +275,48 @@ class PropertyVideo(db.Model):
     property = db.relationship("Property", backref=db.backref("videos", cascade="all, delete-orphan"))
 
     def __repr__(self) -> str:
-        return f"<PropertyVideo property={self.property_id}>"           
+        return f"<PropertyVideo property={self.property_id}>"
+
+
+class Favorite(db.Model):
+    """A user's saved property listing."""
+
+    __tablename__ = "property_favorites"
+
+    id: int = db.Column(db.Integer, primary_key=True)
+    user_id: int = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    property_id: int = db.Column(
+        db.Integer, db.ForeignKey("properties.id"), nullable=False
+    )
+    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", back_populates="favorites")
+    property = db.relationship("Property", back_populates="favorites")
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "property_id", name="uq_property_favorite"),
+    )
+
+
+class PropertyReport(db.Model):
+    """A user-submitted safety report about a property listing."""
+
+    __tablename__ = "property_reports"
+
+    id: int = db.Column(db.Integer, primary_key=True)
+    reporter_id: int = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    property_id: int = db.Column(
+        db.Integer, db.ForeignKey("properties.id"), nullable=False
+    )
+    reason: str = db.Column(db.String(40), nullable=False)
+    details: str = db.Column(db.String(1200), nullable=False, default="")
+    status: str = db.Column(db.String(20), nullable=False, default="open")
+    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at: datetime = db.Column(db.DateTime, nullable=True)
+    reviewed_by_id: int = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+
+    reporter = db.relationship(
+        "User", back_populates="property_reports", foreign_keys=[reporter_id]
+    )
+    property = db.relationship("Property", back_populates="reports")
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_id])

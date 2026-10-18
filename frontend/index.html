@@ -13,11 +13,17 @@
   <meta property="og:description" content="Find short-let stays, monthly rentals, and properties for sale in Enugu, Nigeria.">
   <meta property="og:url" content="https://www.homespace.ng/">
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="brand-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 </head>
 <body>
 
   <header>
-  <h1>🏠 HomeSpace</h1>
+  <h1 class="brand-heading">
+    <a class="brand-link" href="/" aria-label="HomeSpace home">
+      <img class="brand-mark" src="brand-logo.svg" alt="HomeSpace — Find your place. Feel at home.">
+    </a>
+  </h1>
   <a href="https://wa.me/2348153191672" target="_blank" class="whatsapp-help-btn">
     💬 Need Help? Chat on WhatsApp
   </a>
@@ -98,6 +104,10 @@
         <input type="text" id="prop-title" placeholder="Title" required>
         <textarea id="prop-description" placeholder="Description"></textarea>
         <input type="text" id="prop-location" placeholder="Location" required>
+        <input type="number" id="prop-bedrooms" min="0" max="50" step="1" placeholder="Bedrooms (0 for studio)">
+        <input type="text" id="prop-amenities" placeholder="Amenities, comma-separated (e.g. Wi-Fi, Parking)">
+        <input type="number" id="prop-latitude" min="-90" max="90" step="any" placeholder="Latitude (for map)">
+        <input type="number" id="prop-longitude" min="-180" max="180" step="any" placeholder="Longitude (for map)">
         <label><input type="checkbox" id="prop-is-short-let"> Short-let (nightly)</label>
         <input type="number" id="prop-price-per-night" min="0" max="9999999999999.99" step="0.01" placeholder="Price per night (NGN)">
         <input type="number" id="prop-monthly-rent" min="0" max="9999999999999.99" step="0.01" placeholder="Monthly rent / sale price (NGN)">
@@ -120,6 +130,10 @@
         <input type="text" id="edit-prop-title" placeholder="Title" required>
         <textarea id="edit-prop-description" placeholder="Description"></textarea>
         <input type="text" id="edit-prop-location" placeholder="Location" required>
+        <input type="number" id="edit-prop-bedrooms" min="0" max="50" step="1" placeholder="Bedrooms (0 for studio)">
+        <input type="text" id="edit-prop-amenities" placeholder="Amenities, comma-separated (e.g. Wi-Fi, Parking)">
+        <input type="number" id="edit-prop-latitude" min="-90" max="90" step="any" placeholder="Latitude (for map)">
+        <input type="number" id="edit-prop-longitude" min="-180" max="180" step="any" placeholder="Longitude (for map)">
         <label><input type="checkbox" id="edit-prop-is-short-let"> Short-let (nightly)</label>
         <input type="number" id="edit-prop-price-per-night" min="0" max="9999999999999.99" step="0.01" placeholder="Price per night (NGN)">
         <input type="number" id="edit-prop-monthly-rent" min="0" max="9999999999999.99" step="0.01" placeholder="Monthly rent / sale price (NGN)">
@@ -172,6 +186,8 @@
       <div id="admin-bookings-list"></div>
       <h2>Property verification reviews</h2>
       <div id="admin-verification-list"></div>
+      <h2>Listing safety reports</h2>
+      <div id="admin-property-reports"></div>
     </section>
 
     <!-- PROPERTY LISTING -->
@@ -187,15 +203,65 @@
         </select>
         <input type="number" id="filter-min-price" min="0" placeholder="Min price (NGN)" aria-label="Minimum price">
         <input type="number" id="filter-max-price" min="0" placeholder="Max price (NGN)" aria-label="Maximum price">
+        <input type="number" id="filter-bedrooms" min="0" max="50" placeholder="Min bedrooms" aria-label="Minimum bedrooms">
+        <input type="text" id="filter-amenities" placeholder="Amenities (comma-separated)" aria-label="Required amenities">
+        <select id="filter-sort" aria-label="Sort properties">
+          <option value="newest">Newest first</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="price_desc">Price: high to low</option>
+        </select>
         <button id="btn-filter">Search</button>
       </div>
+      <div id="property-map" class="property-map" aria-label="Map of property listings"></div>
+      <p id="property-map-message" class="property-map-message" aria-live="polite"></p>
       <div id="properties-list" class="properties-grid"></div>
+    </section>
+
+    <section id="my-favorites-section" class="hidden">
+      <h2>Saved properties</h2>
+      <div id="my-favorites-list" class="properties-grid" aria-live="polite"></div>
     </section>
 
     <section id="my-bookings-section" class="hidden">
       <h2>My bookings</h2>
       <div id="my-bookings-list" aria-live="polite"></div>
     </section>
+
+    <section id="property-qa-section" aria-labelledby="property-qa-title">
+      <h2 id="property-qa-title">Ask about a property</h2>
+      <p>Get answers based on the listing details. For anything not listed, contact the owner.</p>
+      <form id="property-qa-form">
+        <label for="property-qa-listing">Property</label>
+        <select id="property-qa-listing" required>
+          <option value="">Choose a property</option>
+        </select>
+        <label for="property-qa-question">Your question</label>
+        <textarea id="property-qa-question" maxlength="1000" placeholder="Ask about price, location, or listed amenities" required></textarea>
+        <button type="submit">Ask question</button>
+      </form>
+      <p id="property-qa-answer" class="message" aria-live="polite"></p>
+    </section>
+
+    <dialog id="report-property-dialog" aria-labelledby="report-property-title">
+      <div class="booking-dialog-header">
+        <h2 id="report-property-title">Report this listing</h2>
+        <button type="button" id="close-report-dialog" aria-label="Close report form">×</button>
+      </div>
+      <form id="report-property-form">
+        <input type="hidden" id="report-property-id">
+        <label for="report-property-reason">Reason</label>
+        <select id="report-property-reason" required>
+          <option value="suspected_scam">Suspected scam or fraud</option>
+          <option value="incorrect_information">Incorrect information</option>
+          <option value="duplicate">Duplicate listing</option>
+          <option value="other">Other safety concern</option>
+        </select>
+        <label for="report-property-details">Details (optional)</label>
+        <textarea id="report-property-details" maxlength="1200"></textarea>
+        <p id="report-property-message" class="message" aria-live="polite"></p>
+        <button type="submit">Send report</button>
+      </form>
+    </dialog>
 
     <dialog id="booking-dialog" class="booking-dialog" aria-labelledby="booking-dialog-title">
       <div class="booking-dialog-header">
@@ -219,7 +285,9 @@
   <footer>
     <div class="footer-content">
       <div class="footer-section">
-        <p class="footer-title">🏠 HomeSpace</p>
+        <p class="footer-title footer-brand">
+          <img class="brand-mark" src="brand-logo.svg" alt="HomeSpace — Find your place. Feel at home.">
+        </p>
         <p>Rent directly. Pay just 5%. No hidden agent markups.</p>
       </div>
       <div class="footer-section">
@@ -245,6 +313,7 @@
     </div>
   </footer>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="script.js"></script>
 </body>
 </html>
