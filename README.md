@@ -10,7 +10,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env`, set the local database and service credentials, then start the app with `python wsgi.py`. The app serves the frontend and API from the same Flask process. Booking email updates require the SMTP settings in `.env`; property Q&A requires an Anthropic API key and model. Listing map markers require landlords to enter latitude and longitude; map tiles are provided by OpenStreetMap.
+Copy `.env.example` to `.env`, set the local database and service credentials, then start the app with `python wsgi.py`. The app serves the frontend and API from the same Flask process. Booking email updates require the SMTP settings in `.env`; property Q&A requires an Anthropic API key and model. When creating or editing a listing, landlords can search for a place and pick its exact map position; OpenStreetMap map tiles and Nominatim place search are used. The selected latitude and longitude are saved with the listing.
 
 ## Deploy to PythonAnywhere
 

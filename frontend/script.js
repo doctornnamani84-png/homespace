@@ -7,6 +7,9 @@ const propertiesById = new Map();
 const favoritePropertyIds = new Set();
 let propertyMap;
 let propertyMapMarkers;
+const locationPickers = new Map();
+const placeSearchCache = new Map();
+let lastPlaceSearchAt = 0;
 
 // ---- DOM references ----
 const loginSection = document.getElementById("login-section");
@@ -38,6 +41,169 @@ function showMessage(elementId, text, type) {
   el.className = `message ${type}`;
 }
 
+function initializeLocationPicker(prefix, latitude = null, longitude = null) {
+  const mapElement = document.getElementById(`${prefix}-location-map`);
+  if (!mapElement || typeof L === "undefined") return;
+
+  let picker = locationPickers.get(prefix);
+  if (!picker) {
+    const hasCoordinates = Number.isFinite(Number(latitude))
+      && Number.isFinite(Number(longitude))
+      && latitude !== null && longitude !== null && latitude !== "" && longitude !== "";
+    const initialPosition = hasCoordinates
+      ? [Number(latitude), Number(longitude)]
+      : [9.08, 8.67];
+    const map = L.map(mapElement).setView(initialPosition, hasCoordinates ? 15 : 6);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    }).addTo(map);
+    picker = { map, marker: null };
+    locationPickers.set(prefix, picker);
+
+    map.on("click", (event) => setPickerCoordinates(prefix, event.latlng.lat, event.latlng.lng));
+    mapElement.setAttribute("role", "application");
+
+    document.getElementById(`${prefix}-map-search-button`).addEventListener(
+      "click",
+      () => searchPickerLocation(prefix)
+    );
+    document.getElementById(`${prefix}-map-search`).addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchPickerLocation(prefix);
+      }
+    });
+    document.getElementById(`${prefix}-map-clear`).addEventListener("click", () => {
+      document.getElementById(`${prefix}-latitude`).value = "";
+      document.getElementById(`${prefix}-longitude`).value = "";
+      document.getElementById(`${prefix}-map-search-results`).replaceChildren();
+      document.getElementById(`${prefix}-map-search-message`).textContent =
+        "Map location cleared. Click the map or search for the property to add a pin.";
+      if (picker.marker) {
+        picker.map.removeLayer(picker.marker);
+        picker.marker = null;
+      }
+    });
+    for (const coordinateName of ["latitude", "longitude"]) {
+      document.getElementById(`${prefix}-${coordinateName}`).addEventListener(
+        "change",
+        () => {
+          const latitudeValue = document.getElementById(`${prefix}-latitude`).value;
+          const longitudeValue = document.getElementById(`${prefix}-longitude`).value;
+          if (!latitudeValue || !longitudeValue) return;
+          const lat = Number(latitudeValue);
+          const lng = Number(longitudeValue);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            setPickerCoordinates(prefix, lat, lng);
+          }
+        }
+      );
+    }
+  }
+
+  if (latitude !== null && longitude !== null && latitude !== "" && longitude !== "") {
+    setPickerCoordinates(prefix, Number(latitude), Number(longitude), false);
+  }
+  window.setTimeout(() => picker.map.invalidateSize(), 0);
+}
+
+function setPickerCoordinates(prefix, latitude, longitude, centerMap = true) {
+  const picker = locationPickers.get(prefix);
+  if (
+    !picker
+    || !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) return;
+
+  const position = [latitude, longitude];
+  document.getElementById(`${prefix}-latitude`).value = latitude.toFixed(6);
+  document.getElementById(`${prefix}-longitude`).value = longitude.toFixed(6);
+  if (!picker.marker) {
+    picker.marker = L.marker(position, { draggable: true }).addTo(picker.map);
+    picker.marker.on("dragend", () => {
+      const moved = picker.marker.getLatLng();
+      setPickerCoordinates(prefix, moved.lat, moved.lng, false);
+    });
+  } else {
+    picker.marker.setLatLng(position);
+  }
+  if (centerMap) picker.map.setView(position, Math.max(picker.map.getZoom(), 15));
+  document.getElementById(`${prefix}-map-search-message`).textContent =
+    `Selected location: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}. Drag the pin to adjust it.`;
+}
+
+async function searchPickerLocation(prefix) {
+  const searchInput = document.getElementById(`${prefix}-map-search`);
+  const message = document.getElementById(`${prefix}-map-search-message`);
+  const resultsElement = document.getElementById(`${prefix}-map-search-results`);
+  const searchButton = document.getElementById(`${prefix}-map-search-button`);
+  const locationInput = document.getElementById(
+    `${prefix === "prop" ? "prop" : "edit-prop"}-location`
+  );
+  const query = searchInput.value.trim() || locationInput.value.trim();
+  if (!query) {
+    message.textContent = "Enter a property location or map search to find a place.";
+    return;
+  }
+
+  const cacheKey = query.toLocaleLowerCase();
+  let results = placeSearchCache.get(cacheKey);
+  searchButton.disabled = true;
+  resultsElement.replaceChildren();
+  message.textContent = "Searching for that place...";
+  try {
+    if (!results) {
+      const waitMs = Math.max(0, 1100 - (Date.now() - lastPlaceSearchAt));
+      if (waitMs) await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+      lastPlaceSearchAt = Date.now();
+      const params = new URLSearchParams({
+        q: query,
+        format: "jsonv2",
+        limit: "5",
+      });
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?${params}`,
+        { headers: { Accept: "application/json" } }
+      );
+      if (!response.ok) throw new Error(`Place search returned HTTP ${response.status}`);
+      results = await response.json();
+      placeSearchCache.set(cacheKey, results);
+    }
+
+    if (!results.length) {
+      message.textContent = "No matching places found. Try adding a town, state, or country.";
+      return;
+    }
+
+    message.textContent = "Choose the correct result to place the pin:";
+    for (const result of results) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "location-search-result";
+      button.textContent = result.display_name;
+      button.addEventListener("click", () => {
+        const latitude = Number(result.lat);
+        const longitude = Number(result.lon);
+        const picker = locationPickers.get(prefix);
+        picker.map.setView([latitude, longitude], 16);
+        setPickerCoordinates(prefix, latitude, longitude, false);
+        resultsElement.replaceChildren();
+      });
+      resultsElement.append(button);
+    }
+  } catch (error) {
+    message.textContent =
+      "Place search is unavailable right now. You can still zoom and click the map to place the pin.";
+  } finally {
+    searchButton.disabled = false;
+  }
+}
+
 function setLoggedInUI() {
   loginSection.classList.add("hidden");
   registerSection.classList.add("hidden");
@@ -58,6 +224,7 @@ function setLoggedInUI() {
     document.getElementById("block-dates-section").classList.remove("hidden");
     document.getElementById("upload-image-section").classList.remove("hidden");
     document.getElementById("upload-video-section").classList.remove("hidden");
+    initializeLocationPicker("prop");
 }
 
   if (currentUser.role === "admin") {
@@ -1274,6 +1441,7 @@ function openEditForm(prop) {
   updateNegotiableOption(prop.listing_type || "rent", "edit-prop-negotiable-option", "edit-prop-price-negotiable");
 
   document.getElementById("edit-property-section").classList.remove("hidden");
+  initializeLocationPicker("edit-prop", prop.latitude, prop.longitude);
   document.getElementById("edit-property-section").scrollIntoView({ behavior: "smooth" });
 }
 

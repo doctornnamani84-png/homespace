@@ -106,8 +106,25 @@
         <input type="text" id="prop-location" placeholder="Location" required>
         <input type="number" id="prop-bedrooms" min="0" max="50" step="1" placeholder="Bedrooms (0 for studio)">
         <input type="text" id="prop-amenities" placeholder="Amenities, comma-separated (e.g. Wi-Fi, Parking)">
-        <input type="number" id="prop-latitude" min="-90" max="90" step="any" placeholder="Latitude (for map)">
-        <input type="number" id="prop-longitude" min="-180" max="180" step="any" placeholder="Longitude (for map)">
+        <fieldset class="location-picker">
+          <legend>Choose this property's map location</legend>
+          <p>Search for an address or area, choose a result, then click the map to fine-tune the pin. If the search box is blank, the Location field above will be searched.</p>
+          <div class="location-search">
+            <input type="search" id="prop-map-search" placeholder="Search an address, area, or city">
+            <button type="button" id="prop-map-search-button">Search map</button>
+          </div>
+          <p id="prop-map-search-message" class="location-picker-message" aria-live="polite"></p>
+          <div id="prop-map-search-results" class="location-search-results"></div>
+          <div id="prop-location-map" class="location-picker-map" aria-label="Choose property location on map"></div>
+          <div class="coordinate-fields">
+            <label for="prop-latitude">Latitude</label>
+            <input type="number" id="prop-latitude" min="-90" max="90" step="any" placeholder="Selected from map">
+            <label for="prop-longitude">Longitude</label>
+            <input type="number" id="prop-longitude" min="-180" max="180" step="any" placeholder="Selected from map">
+          </div>
+          <button type="button" id="prop-map-clear">Clear map location</button>
+          <p class="location-picker-attribution">Search by <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>; map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
+        </fieldset>
         <label><input type="checkbox" id="prop-is-short-let"> Short-let (nightly)</label>
         <input type="number" id="prop-price-per-night" min="0" max="9999999999999.99" step="0.01" placeholder="Price per night (NGN)">
         <input type="number" id="prop-monthly-rent" min="0" max="9999999999999.99" step="0.01" placeholder="Monthly rent / sale price (NGN)">
@@ -132,8 +149,25 @@
         <input type="text" id="edit-prop-location" placeholder="Location" required>
         <input type="number" id="edit-prop-bedrooms" min="0" max="50" step="1" placeholder="Bedrooms (0 for studio)">
         <input type="text" id="edit-prop-amenities" placeholder="Amenities, comma-separated (e.g. Wi-Fi, Parking)">
-        <input type="number" id="edit-prop-latitude" min="-90" max="90" step="any" placeholder="Latitude (for map)">
-        <input type="number" id="edit-prop-longitude" min="-180" max="180" step="any" placeholder="Longitude (for map)">
+        <fieldset class="location-picker">
+          <legend>Choose this property's map location</legend>
+          <p>Search for an address or area, choose a result, then click the map to fine-tune the pin. If the search box is blank, the Location field above will be searched.</p>
+          <div class="location-search">
+            <input type="search" id="edit-prop-map-search" placeholder="Search an address, area, or city">
+            <button type="button" id="edit-prop-map-search-button">Search map</button>
+          </div>
+          <p id="edit-prop-map-search-message" class="location-picker-message" aria-live="polite"></p>
+          <div id="edit-prop-map-search-results" class="location-search-results"></div>
+          <div id="edit-prop-location-map" class="location-picker-map" aria-label="Choose property location on map"></div>
+          <div class="coordinate-fields">
+            <label for="edit-prop-latitude">Latitude</label>
+            <input type="number" id="edit-prop-latitude" min="-90" max="90" step="any" placeholder="Selected from map">
+            <label for="edit-prop-longitude">Longitude</label>
+            <input type="number" id="edit-prop-longitude" min="-180" max="180" step="any" placeholder="Selected from map">
+          </div>
+          <button type="button" id="edit-prop-map-clear">Clear map location</button>
+          <p class="location-picker-attribution">Search by <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>; map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.</p>
+        </fieldset>
         <label><input type="checkbox" id="edit-prop-is-short-let"> Short-let (nightly)</label>
         <input type="number" id="edit-prop-price-per-night" min="0" max="9999999999999.99" step="0.01" placeholder="Price per night (NGN)">
         <input type="number" id="edit-prop-monthly-rent" min="0" max="9999999999999.99" step="0.01" placeholder="Monthly rent / sale price (NGN)">

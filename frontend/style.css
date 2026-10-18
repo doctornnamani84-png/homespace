@@ -112,13 +112,22 @@ main {
   color: #16602e;
 }
 
-.auth-section, #create-property-section {
+.auth-section, #create-property-section, #edit-property-section {
   background: white;
   padding: 1.5rem;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   margin-bottom: 1.5rem;
+}
+
+.auth-section {
   max-width: 400px;
+}
+
+#create-property-section,
+#edit-property-section {
+  max-width: 100%;
+  grid-column: 1 / -1;
 }
 
 form {
@@ -285,6 +294,101 @@ button[type="submit"]:hover {
 .property-map-message {
   color: #59635d;
   font-size: 0.9rem;
+}
+
+.location-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid #cbd5ce;
+  border-radius: 8px;
+}
+
+.location-picker legend {
+  padding: 0 0.35rem;
+  color: #173d2b;
+  font-weight: 700;
+}
+
+.location-picker > p:first-of-type {
+  margin: 0 0 0.75rem;
+  color: #59635d;
+  font-size: 0.9rem;
+}
+
+.location-search {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.location-search input {
+  flex: 1;
+  min-width: 0;
+}
+
+.location-search button,
+#prop-map-clear,
+#edit-prop-map-clear {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #1f7a3d;
+  border-radius: 6px;
+  background: white;
+  color: #173d2b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.location-picker-map {
+  height: 300px;
+  margin: 0.5rem 0;
+  border: 1px solid #d9dfda;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+.location-picker-message {
+  min-height: 1.25rem;
+  margin: 0.5rem 0;
+  color: #59635d;
+  font-size: 0.9rem;
+}
+
+.location-search-results {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.location-search-result {
+  padding: 0.5rem;
+  border: 1px solid #d9dfda;
+  border-radius: 5px;
+  background: #f7faf8;
+  color: #173d2b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.location-search-result:hover {
+  background: #e8f1eb;
+}
+
+.coordinate-fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.coordinate-fields label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.location-picker-attribution {
+  margin: 0.5rem 0 0;
+  color: #59635d;
+  font-size: 0.75rem;
 }
 
 .favorite-btn,
